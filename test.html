@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alpine Draggable Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
+    h2 { margin: 20px 0 10px; font-size: 16px; color: #333; }
+    h2:first-child { margin-top: 0; }
+
+    .list {
+      list-style: none;
+      max-width: 400px;
+    }
+
+    .item {
+      padding: 12px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      user-select: none;
+    }
+    .item:last-child { border-bottom: none; }
+
+    .item[data-dragging] {
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      pointer-events: none;
+    }
+
+    .item--disabled {
+      opacity: 0.5;
+      background: #f0f0f0;
+    }
+
+    .handle {
+      cursor: grab;
+      margin-right: 8px;
+      color: #999;
+      display: inline-block;
+    }
+
+    .scrollable {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      max-width: 400px;
+    }
+
+    .log {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #666;
+      font-family: monospace;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      max-width: 500px;
+      list-style: none;
+    }
+
+    .grid-item {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      user-select: none;
+      cursor: grab;
+    }
+
+    .grid-item[data-dragging] {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      pointer-events: none;
+      z-index: 10000;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Test 1: Basic draggable -->
+  <h2>1. Basic draggable</h2>
+  <div x-data="{ items: ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry'], log: '' }"
+       x-draggable-list
+       @reorder="
+         const [el] = items.splice($event.detail.from, 1);
+         items.splice($event.detail.to, 0, el);
+         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
+       ">
+    <ul class="list">
+      <template x-for="(item, i) in items" :key="item">
+        <li class="item" x-draggable x-text="item"></li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <!-- Test 2: With handles -->
+  <h2>2. With handles</h2>
+  <div x-data="{ items: ['Red', 'Green', 'Blue', 'Yellow'], log: '' }"
+       x-draggable-list
+       @reorder="
+         const [el] = items.splice($event.detail.from, 1);
+         items.splice($event.detail.to, 0, el);
+         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
+       ">
+    <ul class="list">
+      <template x-for="(item, i) in items" :key="item">
+        <li class="item" x-draggable.handle>
+          <span class="handle" x-draggable-handle>&#x2630;</span>
+          <span x-text="item"></span>
+        </li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <!-- Test 3: With disabled item -->
+  <h2>3. With disabled item</h2>
+  <div x-data="{
+         items: [
+           { name: 'Movable A', disabled: false },
+           { name: 'Pinned (disabled)', disabled: true },
+           { name: 'Movable B', disabled: false },
+           { name: 'Movable C', disabled: false },
+         ],
+         log: ''
+       }"
+       x-draggable-list
+       @reorder="
+         const [el] = items.splice($event.detail.from, 1);
+         items.splice($event.detail.to, 0, el);
+         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
+       ">
+    <ul class="list">
+      <template x-for="(item, i) in items" :key="item.name">
+        <li class="item"
+            :class="item.disabled && 'item--disabled'"
+            x-draggable
+            :data-drag-disabled="item.disabled || false"
+            x-text="item.name"></li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <!-- Test 4: Scrollable container -->
+  <h2>4. Scrollable container</h2>
+  <div x-data="{ items: Array.from({length: 20}, (_, i) => `Item ${i + 1}`), log: '' }">
+    <div class="scrollable"
+         x-draggable-list
+         @reorder="
+           const [el] = items.splice($event.detail.from, 1);
+           items.splice($event.detail.to, 0, el);
+           log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
+         ">
+      <ul class="list">
+        <template x-for="(item, i) in items" :key="item">
+          <li class="item" x-draggable x-text="item"></li>
+        </template>
+      </ul>
+    </div>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <!-- Test 5: 2D grid with varied sizes -->
+  <h2>5. 2D grid with varied sizes</h2>
+  <div x-data="{
+         items: [
+           { label: 'A', w: 1, h: 1, color: '#e8f5e9' },
+           { label: 'B', w: 2, h: 1, color: '#e3f2fd' },
+           { label: 'C', w: 1, h: 1, color: '#fff3e0' },
+           { label: 'D', w: 1, h: 2, color: '#fce4ec' },
+           { label: 'E', w: 1, h: 1, color: '#f3e5f5' },
+           { label: 'F', w: 1, h: 1, color: '#e0f7fa' },
+           { label: 'G', w: 2, h: 1, color: '#fff9c4' },
+           { label: 'H', w: 1, h: 1, color: '#efebe9' },
+           { label: 'I', w: 1, h: 1, color: '#e8eaf6' },
+           { label: 'J', w: 1, h: 1, color: '#f1f8e9' },
+         ],
+         log: ''
+       }"
+       x-draggable-list
+       @reorder="
+         const [el] = items.splice($event.detail.from, 1);
+         items.splice($event.detail.to, 0, el);
+         log = `Moved ${el.label} from ${$event.detail.from} to ${$event.detail.to}`;
+       ">
+    <ul class="grid">
+      <template x-for="(item, i) in items" :key="item.label">
+        <li class="grid-item"
+            x-draggable
+            :style="`
+              grid-column: span ${item.w};
+              grid-row: span ${item.h};
+              min-height: ${item.h * 60}px;
+              background: ${item.color};
+            `"
+            x-text="item.label"></li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <!-- Test 6: Variable height items -->
+  <h2>6. Variable height items</h2>
+  <div x-data="{
+         items: [
+           { id: 1, text: 'Short item' },
+           { id: 2, text: 'This item has quite a bit more content in it so it will naturally wrap to multiple lines and be taller than the others' },
+           { id: 3, text: 'Medium length item with some extra text' },
+           { id: 4, text: 'Tiny' },
+           { id: 5, text: 'Another tall one. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' },
+           { id: 6, text: 'Regular item' },
+         ],
+         log: ''
+       }"
+       x-draggable-list
+       @reorder="
+         const [el] = items.splice($event.detail.from, 1);
+         items.splice($event.detail.to, 0, el);
+         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
+       ">
+    <ul class="list">
+      <template x-for="item in items" :key="item.id">
+        <li class="item" x-draggable x-text="item.text"></li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
+  <script type="module">
+    import AlpineDraggable from './alpine-draggable.js';
+    import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/module.esm.js';
+    Alpine.plugin(AlpineDraggable);
+    Alpine.start();
+    window.Alpine = Alpine;
+  </script>
+</body>
+</html>
