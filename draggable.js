@@ -205,6 +205,7 @@ export class Draggable {
 
   startDrag() {
     this.state = "dragging";
+    this.draggingBox = this.draggingEl.getBoundingClientRect();
     this.collectItems();
     this.initScroll();
     this.insertPlaceholder();
@@ -235,7 +236,6 @@ export class Draggable {
   }
 
   liftDraggingElement() {
-    this.draggingBox = this.draggingEl.getBoundingClientRect();
     const b = this.draggingBox;
     Object.assign(this.draggingEl.style, {
       position: "fixed", zIndex: "10000",

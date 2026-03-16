@@ -1,10 +1,13 @@
 // Alpine.js bindings for the vanilla Draggable library.
 // Maps x-draggable-list, x-draggable, and x-draggable-handle directives
 // to data attributes consumed by the Draggable class.
+//
+// Usage:
+//   x-draggable-list="items"   -- auto-splices the bound array on reorder
+//   x-draggable-list            -- event-only, handle @reorder yourself
 
 import { Draggable } from "./draggable.js";
 
-// Inject Alpine-specific styles (attribute selectors for directives)
 let stylesInjected = false;
 function injectStyles() {
   if (stylesInjected) return;
@@ -17,12 +20,16 @@ function injectStyles() {
 export default function AlpineDraggable(Alpine) {
   injectStyles();
 
-  Alpine.directive("draggable-list", (el, {}, { cleanup }) => {
+  Alpine.directive("draggable-list", (el, { expression }, { evaluate, cleanup }) => {
     const d = new Draggable(el, {
       items: "[data-draggable]",
       handle: "[data-draggable-handle]",
       disabled: (item) => item.hasAttribute("data-drag-disabled"),
       onReorder({ from, to }) {
+        if (expression) {
+          const arr = evaluate(expression);
+          arr.splice(to, 0, arr.splice(from, 1)[0]);
+        }
         el.dispatchEvent(new CustomEvent("reorder", {
           detail: { from, to },
           bubbles: true,

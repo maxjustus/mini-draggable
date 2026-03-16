@@ -89,14 +89,10 @@
   <!-- Test 1: Basic draggable -->
   <h2>1. Basic draggable</h2>
   <div x-data="{ items: ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry'], log: '' }"
-       x-draggable-list
-       @reorder="
-         const [el] = items.splice($event.detail.from, 1);
-         items.splice($event.detail.to, 0, el);
-         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
-       ">
+       x-draggable-list="items"
+       @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
-      <template x-for="(item, i) in items" :key="item">
+      <template x-for="item in items" :key="item">
         <li class="item" x-draggable x-text="item"></li>
       </template>
     </ul>
@@ -106,14 +102,10 @@
   <!-- Test 2: With handles -->
   <h2>2. With handles</h2>
   <div x-data="{ items: ['Red', 'Green', 'Blue', 'Yellow'], log: '' }"
-       x-draggable-list
-       @reorder="
-         const [el] = items.splice($event.detail.from, 1);
-         items.splice($event.detail.to, 0, el);
-         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
-       ">
+       x-draggable-list="items"
+       @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
-      <template x-for="(item, i) in items" :key="item">
+      <template x-for="item in items" :key="item">
         <li class="item" x-draggable.handle>
           <span class="handle" x-draggable-handle>&#x2630;</span>
           <span x-text="item"></span>
@@ -134,14 +126,10 @@
          ],
          log: ''
        }"
-       x-draggable-list
-       @reorder="
-         const [el] = items.splice($event.detail.from, 1);
-         items.splice($event.detail.to, 0, el);
-         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
-       ">
+       x-draggable-list="items"
+       @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
-      <template x-for="(item, i) in items" :key="item.name">
+      <template x-for="item in items" :key="item.name">
         <li class="item"
             :class="item.disabled && 'item--disabled'"
             x-draggable
@@ -156,14 +144,10 @@
   <h2>4. Scrollable container</h2>
   <div x-data="{ items: Array.from({length: 20}, (_, i) => `Item ${i + 1}`), log: '' }">
     <div class="scrollable"
-         x-draggable-list
-         @reorder="
-           const [el] = items.splice($event.detail.from, 1);
-           items.splice($event.detail.to, 0, el);
-           log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
-         ">
+         x-draggable-list="items"
+         @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
       <ul class="list">
-        <template x-for="(item, i) in items" :key="item">
+        <template x-for="item in items" :key="item">
           <li class="item" x-draggable x-text="item"></li>
         </template>
       </ul>
@@ -188,14 +172,10 @@
          ],
          log: ''
        }"
-       x-draggable-list
-       @reorder="
-         const [el] = items.splice($event.detail.from, 1);
-         items.splice($event.detail.to, 0, el);
-         log = `Moved ${el.label} from ${$event.detail.from} to ${$event.detail.to}`;
-       ">
+       x-draggable-list="items"
+       @reorder="log = `Moved ${items[$event.detail.to].label} from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="grid">
-      <template x-for="(item, i) in items" :key="item.label">
+      <template x-for="item in items" :key="item.label">
         <li class="grid-item"
             x-draggable
             :style="`
@@ -223,12 +203,8 @@
          ],
          log: ''
        }"
-       x-draggable-list
-       @reorder="
-         const [el] = items.splice($event.detail.from, 1);
-         items.splice($event.detail.to, 0, el);
-         log = `Moved from ${$event.detail.from} to ${$event.detail.to}`;
-       ">
+       x-draggable-list="items"
+       @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item.id">
         <li class="item" x-draggable x-text="item.text"></li>

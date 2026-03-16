@@ -124,13 +124,11 @@ The placeholder copies computed grid/flex layout properties from the dragged ite
 
 ### Basic list
 
+Pass your data array as the directive expression. The plugin auto-splices it on reorder.
+
 ```html
 <div x-data="{ items: ['Apple', 'Banana', 'Cherry', 'Date'] }"
-     x-draggable-list
-     @reorder="
-       const [el] = items.splice($event.detail.from, 1);
-       items.splice($event.detail.to, 0, el);
-     ">
+     x-draggable-list="items">
   <ul>
     <template x-for="item in items" :key="item">
       <li x-draggable x-text="item"></li>
@@ -139,7 +137,20 @@ The placeholder copies computed grid/flex layout properties from the dragged ite
 </div>
 ```
 
-The `@reorder` event fires after the drop animation completes. `$event.detail` contains `{ from, to }` indices. Update your data array in the handler and Alpine re-renders.
+For side effects (logging, saving to server), add `@reorder` -- the event fires after the array is already updated:
+
+```html
+<div x-data="{ items: ['A', 'B', 'C'] }"
+     x-draggable-list="items"
+     @reorder="console.log(`Moved from ${$event.detail.from} to ${$event.detail.to}`)">
+```
+
+Without an expression, the plugin only fires the event and you handle the array yourself:
+
+```html
+<div x-data="{ items: ['A', 'B', 'C'] }"
+     x-draggable-list="items">
+```
 
 ### With handles
 
@@ -147,11 +158,7 @@ Use the `.handle` modifier on `x-draggable` and add `x-draggable-handle` to the 
 
 ```html
 <div x-data="{ items: ['Red', 'Green', 'Blue'] }"
-     x-draggable-list
-     @reorder="
-       const [el] = items.splice($event.detail.from, 1);
-       items.splice($event.detail.to, 0, el);
-     ">
+     x-draggable-list="items">
   <ul>
     <template x-for="item in items" :key="item">
       <li x-draggable.handle>
@@ -215,11 +222,7 @@ Works with grid layouts including multi-span items:
          { label: 'D', w: 1, h: 1 },
        ]
      }"
-     x-draggable-list
-     @reorder="
-       const [el] = items.splice($event.detail.from, 1);
-       items.splice($event.detail.to, 0, el);
-     ">
+     x-draggable-list="items">
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
     <template x-for="item in items" :key="item.label">
       <div x-draggable
@@ -242,11 +245,7 @@ No special configuration needed. Heights are handled correctly by the FLIP anima
          { id: 3, text: 'Medium length item' },
        ]
      }"
-     x-draggable-list
-     @reorder="
-       const [el] = items.splice($event.detail.from, 1);
-       items.splice($event.detail.to, 0, el);
-     ">
+     x-draggable-list="items">
   <ul>
     <template x-for="item in items" :key="item.id">
       <li x-draggable x-text="item.text"></li>
@@ -257,7 +256,7 @@ No special configuration needed. Heights are handled correctly by the FLIP anima
 
 ### Directive reference
 
-**`x-draggable-list`** -- place on the container (or a scrollable ancestor of items). Listen for `@reorder` events.
+**`x-draggable-list`** -- place on the container. Pass a data array as the expression (`x-draggable-list="items"`) for auto-splice, or omit and handle `@reorder` manually.
 
 **`x-draggable`** -- place on each draggable item. Modifiers:
 - `.handle` -- item can only be dragged from a child `x-draggable-handle` element
