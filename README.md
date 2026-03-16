@@ -30,7 +30,7 @@ Uses a placeholder element + FLIP animation -- the browser computes correct posi
 |--------|------|---------|-------------|
 | `items` | string | `"[data-draggable]"` | CSS selector for draggable items within the container |
 | `handle` | string \| null | `null` | CSS selector for handle elements. When set, items with `data-needs-handle` can only be dragged from matching elements |
-| `disabled` | function \| string \| null | `null` | Predicate or CSS selector. Matching items can't be dragged or swapped into |
+| `disabled` | function \| null | `null` | Called with each item element. Return `true` to prevent dragging and swapping into that item |
 | `onReorder` | function \| null | `null` | Called with `{ from, to }` after a successful reorder |
 | `transitionMs` | number | `150` | Duration of the FLIP animation in ms |
 | `dragThreshold` | number | `5` | Pixels of movement before a drag activates |
