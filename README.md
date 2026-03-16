@@ -2,7 +2,7 @@
 
 Drag-to-reorder for lists, grids, and variable-height layouts. Works with any CSS layout (block, flexbox, grid). Touch support included.
 
-Uses a placeholder element + FLIP animation -- the browser computes correct positions, not manual math.
+Uses a placeholder element + FLIP animation to support arbitrary draggable element sizes and layouts.
 
 ## Vanilla JS
 
