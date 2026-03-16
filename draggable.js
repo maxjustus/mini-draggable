@@ -466,7 +466,7 @@ export class Draggable {
       this._animating.clear();
 
       if (from !== to && this.opts.onReorder) {
-        this.opts.onReorder({ from, to });
+        requestAnimationFrame(() => this.opts.onReorder({ from, to }));
       }
     };
 
