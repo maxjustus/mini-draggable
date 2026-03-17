@@ -1,0 +1,33 @@
+# CLAUDE.md
+
+## Project
+
+mini-draggable: vanilla JS drag-to-reorder library with Alpine.js bindings. Placeholder + FLIP animation approach. Supports lists, grids, variable heights, cross-container transfer.
+
+## Files
+
+- `draggable.js` -- vanilla drag engine (Draggable class)
+- `alpine-sortable.js` -- thin Alpine.js directive wrapper
+- `test.html` -- test page with 7 scenarios (serve with `make serve`, open http://localhost:3813/test.html)
+
+## Commands
+
+- `make check` -- run TypeScript type checking (strict mode, JSDoc types, no emit)
+- `make serve` -- start local dev server on port 3813
+
+## Type checking
+
+Uses JSDoc annotations with `tsconfig.json` (`strict: true`, `checkJs: true`). Run `make check` before committing. Fix all type errors -- do not use `@ts-ignore` or weaken the tsconfig.
+
+## Architecture
+
+- `Draggable` class manages the full drag lifecycle: pointer tracking, placeholder insertion, FLIP animation, auto-scroll, cross-container transfer
+- Alpine wrapper maps `x-sortable`, `x-draggable`, `x-draggable-handle` directives to data attributes consumed by the Draggable class
+- `meta` property on Draggable instances carries framework-specific data (e.g. Alpine splice helpers)
+- Groups (`opts.group`) enable cross-container drag via a module-level `Map<string, Set<Draggable>>`
+
+## Conventions
+
+- No build step -- plain ES modules, served directly
+- No `_` prefix on methods -- just descriptive names
+- Safari workaround: `repaintContainer` toggles `will-change` to fix hit-test desync after scroll + transform
