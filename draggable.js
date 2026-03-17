@@ -165,8 +165,8 @@ function buildScrollTarget(scrollEl) {
     get scrollY() { return window.scrollY; },
     get scrollWidth() { return document.body.scrollWidth; },
     get scrollHeight() { return document.body.scrollHeight; },
-    width: window.innerWidth,
-    height: window.innerHeight,
+    get width() { return window.innerWidth; },
+    get height() { return window.innerHeight; },
   };
 }
 
@@ -668,30 +668,37 @@ export class Draggable {
       child.removeAttribute("data-dragging");
     }
 
-    /** @type {Draggable} */ (this.activeContainer).el.classList.remove("draggable-active");
+    const sc = /** @type {Draggable} */ (this.sourceContainer);
+    const tc = /** @type {Draggable} */ (this.activeContainer);
+
+    tc.el.classList.remove("draggable-active");
     this.el.classList.remove("draggable-active");
     document.body.style.userSelect = "";
     /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";
 
+    this.repaintContainer(this.el);
+    if (crossContainer) this.repaintContainer(tc.el);
+
     const dragged = this.draggingEl;
     this.draggingEl = null;
+    this.draggingBox = null;
     this.state = "idle";
+    this.items = [];
     this.indices.clear();
     this.animating.clear();
+    this.scrollTarget = null;
+    this.scrollElement = null;
+    this.sourceContainer = null;
+    this.activeContainer = null;
 
     if (crossContainer && this.opts.onTransfer) {
-      const sc = /** @type {Draggable} */ (this.sourceContainer);
-      const tc = /** @type {Draggable} */ (this.activeContainer);
       requestAnimationFrame(() => /** @type {Function} */ (this.opts.onTransfer)({
         from, to, el: dragged, sourceContainer: sc, targetContainer: tc,
       }));
     } else if (!crossContainer && from !== to && this.opts.onReorder) {
       requestAnimationFrame(() => /** @type {Function} */ (this.opts.onReorder)({ from, to }));
     }
-
-    this.repaintContainer(this.el);
-    if (crossContainer) this.repaintContainer(/** @type {Draggable} */ (this.activeContainer).el);
   }
 
   // Workaround: Safari can desync hit-test coordinates from visual
