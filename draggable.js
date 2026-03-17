@@ -2,13 +2,17 @@
 // Uses placeholder + FLIP for correct positioning in any layout
 // (lists, grids, flex, variable heights).
 //
+// Supports cross-container transfer via the `group` option.
+//
 // Usage:
 //   import { Draggable } from './draggable.js';
 //   const d = new Draggable(container, {
 //     items: '[data-draggable]',
 //     handle: '[data-draggable-handle]',
 //     disabled: (el) => el.hasAttribute('data-drag-disabled'),
+//     group: 'board',
 //     onReorder({ from, to }) { ... },
+//     onTransfer({ from, to, el, sourceContainer, targetContainer }) { ... },
 //   });
 //   d.destroy();
 
@@ -26,8 +30,7 @@ const DEFAULTS = {
 };
 
 const STYLE_PROPS = ["transform", "transition", "position", "zIndex", "top", "left", "width", "height"];
-
-const groups = new Map(); // group name -> Set<Draggable>
+const groups = new Map();
 
 // --- Utilities ---
 
@@ -39,6 +42,17 @@ function pointerPos(e) {
 function arrMove(arr, from, to) {
   arr.splice(to, 0, arr.splice(from, 1)[0]);
   return arr;
+}
+
+function hitTest(x, y, el) {
+  const r = el.getBoundingClientRect();
+  return x > r.left && x < r.right && y > r.top && y < r.bottom;
+}
+
+function captureRects(items) {
+  const rects = new Map();
+  for (const child of items) rects.set(child, child.getBoundingClientRect());
+  return rects;
 }
 
 function findScrollable(el) {
@@ -91,7 +105,6 @@ function buildScrollTarget(scrollEl) {
   };
 }
 
-// --- Inject global styles (once) ---
 let stylesInjected = false;
 function injectStyles() {
   if (stylesInjected) return;
@@ -120,6 +133,7 @@ export class Draggable {
     injectStyles();
     this.el = container;
     this.opts = { ...DEFAULTS, ...opts };
+    this.meta = {};
     this.transitionCSS = `transform ${this.opts.transitionMs}ms`;
 
     this.state = "idle";
@@ -180,21 +194,17 @@ export class Draggable {
 
     if (e.type === "touchstart") {
       e.preventDefault();
-      this.emitTouchClick(e);
+      const target = e.target;
+      setTimeout(() => {
+        if (this.state !== "dragging") {
+          target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        }
+      }, this.opts.touchClickDelay);
     }
 
     this.state = "pending";
     this.draggingEl = item;
     this.initialPointer = pointerPos(e);
-  }
-
-  emitTouchClick(e) {
-    const target = e.target;
-    setTimeout(() => {
-      if (this.state !== "dragging") {
-        target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-      }
-    }, this.opts.touchClickDelay);
   }
 
   // --- Pointer move ---
@@ -234,6 +244,12 @@ export class Draggable {
     this.initScroll();
     this.insertPlaceholder();
     this.liftDraggingElement();
+
+    this.draggingEl.setAttribute("data-dragging", "");
+    this.el.classList.add("draggable-active");
+    document.body.style.userSelect = "none";
+    document.body.style.webkitUserSelect = "none";
+    document.body.style.cursor = "grabbing";
   }
 
   collectItems() {
@@ -251,12 +267,6 @@ export class Draggable {
   insertPlaceholder() {
     this.placeholder = createPlaceholder(this.draggingEl);
     this.draggingEl.parentNode.insertBefore(this.placeholder, this.draggingEl);
-
-    this.draggingEl.setAttribute("data-dragging", "");
-    this.el.classList.add("draggable-active");
-    document.body.style.userSelect = "none";
-    document.body.style.webkitUserSelect = "none";
-    document.body.style.cursor = "grabbing";
   }
 
   liftDraggingElement() {
@@ -341,8 +351,7 @@ export class Draggable {
       if (this.activeContainer.opts.disabled?.(child)) continue;
       if (this.animating.has(child)) continue;
 
-      const cr = child.getBoundingClientRect();
-      if (cx > cr.left && cx < cr.right && cy > cr.top && cy < cr.bottom) {
+      if (hitTest(cx, cy, child)) {
         const idx = this.indices.get(child);
         if (idx !== this.currentIndex) {
           this.currentIndex = idx;
@@ -355,51 +364,40 @@ export class Draggable {
     if (this.opts.group) this.checkContainerTransfer(cx, cy);
   }
 
+  // --- Cross-container transfer ---
+
   checkContainerTransfer(cx, cy) {
-    const ar = this.activeContainer.el.getBoundingClientRect();
-    if (cx > ar.left && cx < ar.right && cy > ar.top && cy < ar.bottom) return;
+    if (hitTest(cx, cy, this.activeContainer.el)) return;
 
     for (const other of groups.get(this.opts.group)) {
       if (other === this.activeContainer) continue;
-      const r = other.el.getBoundingClientRect();
-      if (cx > r.left && cx < r.right && cy > r.top && cy < r.bottom) {
+      if (hitTest(cx, cy, other.el)) {
         this.transferToContainer(other, cy);
         return;
       }
     }
   }
 
-  // --- Cross-container transfer ---
-
   transferToContainer(target, cy) {
     const oldContainer = this.activeContainer;
-
-    // Capture rects in both containers for FLIP
-    const oldItems = this.items.filter(el => el !== this.draggingEl);
-    const oldRects = new Map();
-    for (const child of oldItems) oldRects.set(child, child.getBoundingClientRect());
-
+    const siblings = this.items.filter(el => el !== this.draggingEl);
     const targetItems = [...target.el.querySelectorAll(target.opts.items)]
       .filter(el => el !== this.draggingEl);
-    const targetRects = new Map();
-    for (const child of targetItems) targetRects.set(child, child.getBoundingClientRect());
 
-    // Remove placeholder from old container
+    const oldRects = captureRects(siblings);
+    const targetRects = captureRects(targetItems);
+
     this.placeholder.remove();
     oldContainer.el.classList.remove("draggable-active");
 
-    // Compute insertion index in target
     const insertIdx = this.computeInsertionIndex(targetItems, cy);
-
-    // Insert placeholder into target
-    if (targetItems.length === 0 || insertIdx >= targetItems.length) {
+    if (insertIdx >= targetItems.length) {
       target.el.appendChild(this.placeholder);
     } else {
       target.el.insertBefore(this.placeholder, targetItems[insertIdx]);
     }
     target.el.classList.add("draggable-active");
 
-    // Rebuild tracking for the target container
     this.items = [...target.el.querySelectorAll(target.opts.items)]
       .filter(el => el !== this.draggingEl);
     this.items.splice(insertIdx, 0, this.draggingEl);
@@ -409,9 +407,8 @@ export class Draggable {
     this.currentIndex = insertIdx;
     this.activeContainer = target;
 
-    // FLIP animate items in both containers
-    this.flipAnimateExternal(oldItems, oldRects);
-    this.flipAnimateExternal(targetItems, targetRects);
+    this.flipAnimate(siblings, oldRects);
+    this.flipAnimate(targetItems, targetRects);
   }
 
   computeInsertionIndex(items, cy) {
@@ -422,48 +419,15 @@ export class Draggable {
     return items.length;
   }
 
-  flipAnimateExternal(items, firstRects) {
-    const ms = this.opts.transitionMs;
-    for (const child of items) {
-      const first = firstRects.get(child);
-      if (!first) continue;
-      const last = child.getBoundingClientRect();
-      const dx = first.left - last.left;
-      const dy = first.top - last.top;
-
-      if (dx === 0 && dy === 0) {
-        child.style.transition = "none";
-        child.style.transform = "";
-        continue;
-      }
-
-      child.style.transition = "none";
-      child.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-      child.getClientRects();
-      child.style.transition = this.transitionCSS;
-      child.style.transform = "none";
-
-      this.animating.add(child);
-      setTimeout(() => this.animating.delete(child), ms);
-    }
-  }
-
   // --- Sibling repositioning via placeholder + FLIP ---
 
   repositionSiblings() {
     const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
-    const firstRects = this.captureRects();
+    const siblings = this.items.filter(c => c !== this.draggingEl);
+    const firstRects = captureRects(siblings);
     this.movePlaceholder(newOrder);
     newOrder.forEach((child, i) => this.indices.set(child, i));
-    this.flipAnimate(firstRects);
-  }
-
-  captureRects() {
-    const rects = new Map();
-    for (const child of this.items) {
-      if (child !== this.draggingEl) rects.set(child, child.getBoundingClientRect());
-    }
-    return rects;
+    this.flipAnimate(siblings, firstRects);
   }
 
   movePlaceholder(newOrder) {
@@ -475,12 +439,11 @@ export class Draggable {
     this.placeholder.parentNode.insertBefore(this.placeholder, ref || null);
   }
 
-  flipAnimate(firstRects) {
+  flipAnimate(items, firstRects) {
     const ms = this.opts.transitionMs;
-    for (const child of this.items) {
-      if (child === this.draggingEl) continue;
-
+    for (const child of items) {
       const first = firstRects.get(child);
+      if (!first) continue;
       const last = child.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
@@ -514,10 +477,7 @@ export class Draggable {
 
     this.state = "dropping";
     this.scrolling = false;
-    this.animateDropToPlaceholder();
-  }
 
-  animateDropToPlaceholder() {
     const target = this.placeholder.getBoundingClientRect();
     this.draggingEl.style.transition = this.transitionCSS;
     this.draggingEl.style.transform = `translate3d(${target.left - this.draggingBox.left}px, ${target.top - this.draggingBox.top}px, 0)`;
@@ -568,8 +528,6 @@ export class Draggable {
       requestAnimationFrame(() => this.opts.onReorder({ from, to }));
     }
 
-    // Force Safari to rebuild compositing layers so hit-test
-    // coordinates stay aligned with visual positions after scroll.
     this.repaintContainer(this.el);
     if (crossContainer) this.repaintContainer(this.activeContainer.el);
   }

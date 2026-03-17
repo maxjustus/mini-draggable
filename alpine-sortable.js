@@ -3,8 +3,9 @@
 // to data attributes consumed by the Draggable class.
 //
 // Usage:
-//   x-sortable="items"   -- auto-splices the bound array on reorder
-//   x-sortable            -- event-only, handle @reorder yourself
+//   x-sortable="items"          -- auto-splices the bound array on reorder
+//   x-sortable.board="items"    -- grouped containers for cross-list transfer
+//   x-sortable                  -- event-only, handle @reorder yourself
 
 import { Draggable } from "./draggable.js";
 
@@ -22,6 +23,17 @@ export default function AlpineSortable(Alpine) {
 
   Alpine.directive("sortable", (el, { expression, modifiers }, { evaluate, cleanup }) => {
     const group = modifiers[0] || null;
+
+    const spliceOut = (i) => {
+      if (!expression) return undefined;
+      return evaluate(expression).splice(i, 1)[0];
+    };
+
+    const spliceIn = (i, item) => {
+      if (!expression) return;
+      evaluate(expression).splice(i, 0, item);
+    };
+
     const d = new Draggable(el, {
       items: "[data-draggable]",
       handle: "[data-draggable-handle]",
@@ -38,24 +50,16 @@ export default function AlpineSortable(Alpine) {
         }));
       },
       onTransfer({ from, to, sourceContainer, targetContainer }) {
-        const item = sourceContainer._spliceOut?.(from);
-        if (item !== undefined) targetContainer._spliceIn?.(to, item);
+        const item = sourceContainer.meta.spliceOut?.(from);
+        if (item !== undefined) targetContainer.meta.spliceIn?.(to, item);
         el.dispatchEvent(new CustomEvent("transfer", {
           detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
           bubbles: true,
         }));
       },
     });
-    d._spliceOut = (i) => {
-      if (!expression) return undefined;
-      const arr = evaluate(expression);
-      return arr.splice(i, 1)[0];
-    };
-    d._spliceIn = (i, item) => {
-      if (!expression) return;
-      const arr = evaluate(expression);
-      arr.splice(i, 0, item);
-    };
+
+    d.meta = { spliceOut, spliceIn };
     cleanup(() => d.destroy());
   });
 
