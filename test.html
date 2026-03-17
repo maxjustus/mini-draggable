@@ -89,7 +89,7 @@
   <!-- Test 1: Basic draggable -->
   <h2>1. Basic draggable</h2>
   <div x-data="{ items: ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry'], log: '' }"
-       x-draggable-list="items"
+       x-sortable="items"
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item">
@@ -102,7 +102,7 @@
   <!-- Test 2: With handles -->
   <h2>2. With handles</h2>
   <div x-data="{ items: ['Red', 'Green', 'Blue', 'Yellow'], log: '' }"
-       x-draggable-list="items"
+       x-sortable="items"
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item">
@@ -126,7 +126,7 @@
          ],
          log: ''
        }"
-       x-draggable-list="items"
+       x-sortable="items"
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item.name">
@@ -144,7 +144,7 @@
   <h2>4. Scrollable container</h2>
   <div x-data="{ items: Array.from({length: 20}, (_, i) => `Item ${i + 1}`), log: '' }">
     <div class="scrollable"
-         x-draggable-list="items"
+         x-sortable="items"
          @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
       <ul class="list">
         <template x-for="item in items" :key="item">
@@ -172,7 +172,7 @@
          ],
          log: ''
        }"
-       x-draggable-list="items"
+       x-sortable="items"
        @reorder="log = `Moved ${items[$event.detail.to].label} from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="grid">
       <template x-for="item in items" :key="item.label">
@@ -203,7 +203,7 @@
          ],
          log: ''
        }"
-       x-draggable-list="items"
+       x-sortable="items"
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item.id">
@@ -213,10 +213,55 @@
     <div class="log" x-text="log"></div>
   </div>
 
+  <!-- Test 7: Multi-column (Trello-style) -->
+  <h2>7. Multi-column (Trello-style)</h2>
+  <div x-data="{
+         todo: ['Design mockups', 'Write tests', 'Update docs'],
+         doing: ['Build feature', 'Code review'],
+         done: ['Setup repo', 'Initial commit'],
+         log: ''
+       }"
+       @transfer="log = `Transferred from idx ${$event.detail.from} to idx ${$event.detail.to}`"
+       @reorder="log = `Reordered from ${$event.detail.from} to ${$event.detail.to}`">
+    <div style="display: flex; gap: 16px; max-width: 700px;">
+      <div style="flex: 1;">
+        <h3 style="font-size: 13px; margin-bottom: 8px; color: #666;">To Do</h3>
+        <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
+            x-sortable.board="todo">
+          <template x-for="item in todo" :key="item">
+            <li class="item" x-draggable x-text="item"></li>
+          </template>
+        </ul>
+      </div>
+      <div style="flex: 1;">
+        <h3 style="font-size: 13px; margin-bottom: 8px; color: #666;">Doing</h3>
+        <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
+            x-sortable.board="doing">
+          <template x-for="item in doing" :key="item">
+            <li class="item" x-draggable x-text="item"></li>
+          </template>
+        </ul>
+      </div>
+      <div style="flex: 1;">
+        <h3 style="font-size: 13px; margin-bottom: 8px; color: #666;">Done</h3>
+        <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
+            x-sortable.board="done">
+          <template x-for="item in done" :key="item">
+            <li class="item" x-draggable x-text="item"></li>
+          </template>
+        </ul>
+      </div>
+    </div>
+    <div class="log" x-text="log"></div>
+    <div class="log" x-text="'Todo: ' + todo.join(', ')"></div>
+    <div class="log" x-text="'Doing: ' + doing.join(', ')"></div>
+    <div class="log" x-text="'Done: ' + done.join(', ')"></div>
+  </div>
+
   <script type="module">
-    import AlpineDraggable from './alpine-draggable.js';
+    import AlpineSortable from './alpine-sortable.js';
     import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/module.esm.js';
-    Alpine.plugin(AlpineDraggable);
+    Alpine.plugin(AlpineSortable);
     Alpine.start();
     window.Alpine = Alpine;
   </script>

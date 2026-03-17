@@ -1,10 +1,10 @@
 // Alpine.js bindings for the vanilla Draggable library.
-// Maps x-draggable-list, x-draggable, and x-draggable-handle directives
+// Maps x-sortable, x-draggable, and x-draggable-handle directives
 // to data attributes consumed by the Draggable class.
 //
 // Usage:
-//   x-draggable-list="items"   -- auto-splices the bound array on reorder
-//   x-draggable-list            -- event-only, handle @reorder yourself
+//   x-sortable="items"   -- auto-splices the bound array on reorder
+//   x-sortable            -- event-only, handle @reorder yourself
 
 import { Draggable } from "./draggable.js";
 
@@ -13,18 +13,20 @@ function injectStyles() {
   if (stylesInjected) return;
   stylesInjected = true;
   const s = document.createElement("style");
-  s.textContent = `[x-draggable-list] { position: relative; }`;
+  s.textContent = `[x-sortable] { position: relative; }`;
   document.head.appendChild(s);
 }
 
-export default function AlpineDraggable(Alpine) {
+export default function AlpineSortable(Alpine) {
   injectStyles();
 
-  Alpine.directive("draggable-list", (el, { expression }, { evaluate, cleanup }) => {
+  Alpine.directive("sortable", (el, { expression, modifiers }, { evaluate, cleanup }) => {
+    const group = modifiers[0] || null;
     const d = new Draggable(el, {
       items: "[data-draggable]",
       handle: "[data-draggable-handle]",
       disabled: (item) => item.hasAttribute("data-drag-disabled"),
+      group,
       onReorder({ from, to }) {
         if (expression) {
           const arr = evaluate(expression);
@@ -35,7 +37,25 @@ export default function AlpineDraggable(Alpine) {
           bubbles: true,
         }));
       },
+      onTransfer({ from, to, sourceContainer, targetContainer }) {
+        const item = sourceContainer._spliceOut?.(from);
+        if (item !== undefined) targetContainer._spliceIn?.(to, item);
+        el.dispatchEvent(new CustomEvent("transfer", {
+          detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
+          bubbles: true,
+        }));
+      },
     });
+    d._spliceOut = (i) => {
+      if (!expression) return undefined;
+      const arr = evaluate(expression);
+      return arr.splice(i, 1)[0];
+    };
+    d._spliceIn = (i, item) => {
+      if (!expression) return;
+      const arr = evaluate(expression);
+      arr.splice(i, 0, item);
+    };
     cleanup(() => d.destroy());
   });
 
