@@ -4,21 +4,21 @@
 
 Drag-to-reorder for lists, grids, and variable-height layouts. Works with any CSS layout (block, flexbox, grid). Touch support included.
 
-Uses a placeholder element + FLIP animation to support arbitrary draggable element sizes and layouts.
+Uses a placeholder element + FLIP animation to support arbitrary sortable element sizes and layouts.
 
 ## Vanilla JS
 
 ```html
 <ul id="my-list">
-  <li data-draggable>Item 1</li>
-  <li data-draggable>Item 2</li>
-  <li data-draggable>Item 3</li>
+  <li data-sortable>Item 1</li>
+  <li data-sortable>Item 2</li>
+  <li data-sortable>Item 3</li>
 </ul>
 
 <script type="module">
-  import { Draggable } from './draggable.js';
+  import { Sortable } from './sortable.js';
 
-  new Draggable(document.getElementById('my-list'), {
+  new Sortable(document.getElementById('my-list'), {
     onReorder({ from, to }) {
       console.log(`Moved from index ${from} to ${to}`);
     },
@@ -30,7 +30,7 @@ Uses a placeholder element + FLIP animation to support arbitrary draggable eleme
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `items` | string | `"[data-draggable]"` | CSS selector for draggable items within the container |
+| `items` | string | `"[data-sortable]"` | CSS selector for sortable items within the container |
 | `handle` | string \| null | `null` | CSS selector for handle elements. Items with `data-needs-handle` can only be dragged from matching elements |
 | `disabled` | function \| null | `null` | Called with each item element. Return `true` to prevent dragging and swapping into that item |
 | `onReorder` | function \| null | `null` | Called with `{ from, to }` after a same-container drop (deferred by one frame) |
@@ -43,25 +43,25 @@ Uses a placeholder element + FLIP animation to support arbitrary draggable eleme
 
 ### Handles
 
-Add `data-needs-handle` to items that should only be draggable from a handle, and provide the `handle` option:
+Add `data-needs-handle` to items that should only be sortable from a handle, and provide the `handle` option:
 
 ```html
 <ul id="my-list">
-  <li data-draggable data-needs-handle>
-    <span data-draggable-handle style="cursor: grab;">&#x2630;</span>
+  <li data-sortable data-needs-handle>
+    <span data-sortable-handle style="cursor: grab;">&#x2630;</span>
     Item 1
   </li>
-  <li data-draggable data-needs-handle>
-    <span data-draggable-handle style="cursor: grab;">&#x2630;</span>
+  <li data-sortable data-needs-handle>
+    <span data-sortable-handle style="cursor: grab;">&#x2630;</span>
     Item 2
   </li>
 </ul>
 
 <script type="module">
-  import { Draggable } from './draggable.js';
+  import { Sortable } from './sortable.js';
 
-  new Draggable(document.getElementById('my-list'), {
-    handle: '[data-draggable-handle]',
+  new Sortable(document.getElementById('my-list'), {
+    handle: '[data-sortable-handle]',
     onReorder({ from, to }) { /* ... */ },
   });
 </script>
@@ -72,7 +72,7 @@ Items without `data-needs-handle` can be dragged from anywhere, even when the `h
 ### Disabled items
 
 ```js
-new Draggable(container, {
+new Sortable(container, {
   disabled: (el) => el.hasAttribute('data-drag-disabled'),
   onReorder({ from, to }) { /* ... */ },
 });
@@ -83,7 +83,7 @@ Disabled items can't be dragged and other items can't be swapped into their posi
 ### Cleanup
 
 ```js
-const d = new Draggable(container, { /* ... */ });
+const d = new Sortable(container, { /* ... */ });
 // Later:
 d.destroy();
 ```
@@ -95,7 +95,7 @@ During drag, the following attributes/classes are applied:
 | Selector | Applied to | When |
 |----------|-----------|------|
 | `[data-dragging]` | The item being dragged | During drag |
-| `.draggable-active` | The container | During drag |
+| `.sortable-active` | The container | During drag |
 | `[data-drag-placeholder]` | The placeholder element | During drag (visible drop indicator, override default style with CSS) |
 
 The dragged item gets `position: fixed` with inline styles. The placeholder preserves the dragged item's space in the layout and shows a dashed drop indicator by default. Override with your own CSS:
@@ -114,10 +114,10 @@ All inline styles are cleaned up on drop.
 
 ```html
 <div id="grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-  <div data-draggable style="grid-column: span 2;">Wide</div>
-  <div data-draggable>Normal</div>
-  <div data-draggable style="grid-row: span 2;">Tall</div>
-  <div data-draggable>Normal</div>
+  <div data-sortable style="grid-column: span 2;">Wide</div>
+  <div data-sortable>Normal</div>
+  <div data-sortable style="grid-row: span 2;">Tall</div>
+  <div data-sortable>Normal</div>
 </div>
 ```
 
@@ -129,15 +129,15 @@ Give multiple containers the same `group` name. Items can be dragged between the
 
 ```html
 <ul id="todo">
-  <li data-draggable>Task A</li>
-  <li data-draggable>Task B</li>
+  <li data-sortable>Task A</li>
+  <li data-sortable>Task B</li>
 </ul>
 <ul id="done">
-  <li data-draggable>Task C</li>
+  <li data-sortable>Task C</li>
 </ul>
 
 <script type="module">
-  import { Draggable } from './draggable.js';
+  import { Sortable } from './sortable.js';
 
   const opts = {
     group: 'board',
@@ -149,12 +149,12 @@ Give multiple containers the same `group` name. Items can be dragged between the
     },
   };
 
-  new Draggable(document.getElementById('todo'), opts);
-  new Draggable(document.getElementById('done'), opts);
+  new Sortable(document.getElementById('todo'), opts);
+  new Sortable(document.getElementById('done'), opts);
 </script>
 ```
 
-`onReorder` fires for moves within the same container. `onTransfer` fires when an item is dropped in a different container. `sourceContainer` and `targetContainer` are the `Draggable` instances (access `container.el` for the DOM element).
+`onReorder` fires for moves within the same container. `onTransfer` fires when an item is dropped in a different container. `sourceContainer` and `targetContainer` are the `Sortable` instances (access `container.el` for the DOM element).
 
 ## Alpine.js
 
@@ -178,7 +178,7 @@ Pass your data array as the directive expression. The plugin auto-splices it on 
      x-sortable="items">
   <ul>
     <template x-for="item in items" :key="item">
-      <li x-draggable x-text="item"></li>
+      <li x-sortable-item x-text="item"></li>
     </template>
   </ul>
 </div>
@@ -201,15 +201,15 @@ Without an expression, the plugin only fires the event and you handle the array 
 
 ### With handles
 
-Use the `.handle` modifier on `x-draggable` and add `x-draggable-handle` to the grip element. The item can only be dragged from the handle.
+Use the `.handle` modifier on `x-sortable-item` and add `x-sortable-handle` to the grip element. The item can only be dragged from the handle.
 
 ```html
 <div x-data="{ items: ['Red', 'Green', 'Blue'] }"
      x-sortable="items">
   <ul>
     <template x-for="item in items" :key="item">
-      <li x-draggable.handle>
-        <span x-draggable-handle style="cursor: grab;">&#x2630;</span>
+      <li x-sortable-item.handle>
+        <span x-sortable-handle style="cursor: grab;">&#x2630;</span>
         <span x-text="item"></span>
       </li>
     </template>
@@ -223,11 +223,11 @@ Use the `.disabled` modifier for static disabled state, or bind `data-drag-disab
 
 ```html
 <!-- Static: always disabled -->
-<li x-draggable.disabled>Can't move this</li>
+<li x-sortable-item.disabled>Can't move this</li>
 
 <!-- Dynamic: disabled based on data -->
 <template x-for="item in items" :key="item.id">
-  <li x-draggable
+  <li x-sortable-item
       :data-drag-disabled="item.locked || false"
       x-text="item.name"></li>
 </template>
@@ -249,7 +249,7 @@ Put `x-sortable` on the scrollable element. Auto-scroll triggers when dragging n
        ">
     <ul>
       <template x-for="item in items" :key="item">
-        <li x-draggable x-text="item"></li>
+        <li x-sortable-item x-text="item"></li>
       </template>
     </ul>
   </div>
@@ -272,7 +272,7 @@ Works with grid layouts including multi-span items:
      x-sortable="items">
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
     <template x-for="item in items" :key="item.label">
-      <div x-draggable
+      <div x-sortable-item
            :style="`grid-column: span ${item.w}; grid-row: span ${item.h}; min-height: ${item.h * 60}px;`"
            x-text="item.label"></div>
     </template>
@@ -295,7 +295,7 @@ No special configuration needed. Heights are handled correctly by the FLIP anima
      x-sortable="items">
   <ul>
     <template x-for="item in items" :key="item.id">
-      <li x-draggable x-text="item.text"></li>
+      <li x-sortable-item x-text="item.text"></li>
     </template>
   </ul>
 </div>
@@ -314,12 +314,12 @@ Add a group name as a modifier on `x-sortable`. Containers with the same group a
      @reorder="console.log($event.detail)">
   <ul x-sortable.board="todo">
     <template x-for="item in todo" :key="item">
-      <li x-draggable x-text="item"></li>
+      <li x-sortable-item x-text="item"></li>
     </template>
   </ul>
   <ul x-sortable.board="done">
     <template x-for="item in done" :key="item">
-      <li x-draggable x-text="item"></li>
+      <li x-sortable-item x-text="item"></li>
     </template>
   </ul>
 </div>
@@ -331,11 +331,11 @@ The `@reorder` event fires for moves within the same list. The `@transfer` event
 
 **`x-sortable`** -- place on the container. Pass a data array as the expression (`x-sortable="items"`) for auto-splice, or omit and handle `@reorder` manually.
 
-**`x-draggable`** -- place on each draggable item. Modifiers:
-- `.handle` -- item can only be dragged from a child `x-draggable-handle` element
+**`x-sortable-item`** -- place on each sortable item. Modifiers:
+- `.handle` -- item can only be dragged from a child `x-sortable-handle` element
 - `.disabled` -- item can't be dragged or swapped into (static)
 
-**`x-draggable-handle`** -- place on the drag grip element inside an `x-draggable.handle` item. Sets `cursor: grab` automatically.
+**`x-sortable-handle`** -- place on the drag grip element inside an `x-sortable-item.handle` item. Sets `cursor: grab` automatically.
 
 ## Development
 

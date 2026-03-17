@@ -2,11 +2,11 @@
 
 ## Project
 
-mini-draggable: vanilla JS drag-to-reorder library with Alpine.js bindings. Placeholder + FLIP animation approach. Supports lists, grids, variable heights, cross-container transfer.
+mini-sortable: vanilla JS drag-to-reorder library with Alpine.js bindings. Placeholder + FLIP animation approach. Supports lists, grids, variable heights, cross-container transfer.
 
 ## Files
 
-- `draggable.js` -- vanilla drag engine (Draggable class)
+- `sortable.js` -- vanilla drag engine (sortable class)
 - `alpine-sortable.js` -- thin Alpine.js directive wrapper
 - `test.html` -- test page with 7 scenarios (serve with `make serve`, open http://localhost:3813/test.html)
 
@@ -21,10 +21,10 @@ Uses JSDoc annotations with `tsconfig.json` (`strict: true`, `checkJs: true`). R
 
 ## Architecture
 
-- `Draggable` class manages the full drag lifecycle: pointer tracking, placeholder insertion, FLIP animation, auto-scroll, cross-container transfer
-- Alpine wrapper maps `x-sortable`, `x-draggable`, `x-draggable-handle` directives to data attributes consumed by the Draggable class
-- `meta` property on Draggable instances carries framework-specific data (e.g. Alpine splice helpers)
-- Groups (`opts.group`) enable cross-container drag via a module-level `Map<string, Set<Draggable>>`
+- `sortable` class manages the full drag lifecycle: pointer tracking, placeholder insertion, FLIP animation, auto-scroll, cross-container transfer
+- Alpine wrapper maps `x-sortable`, `x-sortable`, `x-sortable-handle` directives to data attributes consumed by the sortable class
+- `meta` property on sortable instances carries framework-specific data (e.g. Alpine splice helpers)
+- Groups (`opts.group`) enable cross-container drag via a module-level `Map<string, Set<sortable>>`
 
 ## Conventions
 

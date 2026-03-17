@@ -5,10 +5,10 @@
 // Supports cross-container transfer via the `group` option.
 //
 // Usage:
-//   import { Draggable } from './draggable.js';
-//   const d = new Draggable(container, {
-//     items: '[data-draggable]',
-//     handle: '[data-draggable-handle]',
+//   import { Sortable } from './sortable.js';
+//   const d = new Sortable(container, {
+//     items: '[data-sortable]',
+//     handle: '[data-sortable-handle]',
 //     disabled: (el) => el.hasAttribute('data-drag-disabled'),
 //     group: 'board',
 //     onReorder({ from, to }) { ... },
@@ -25,8 +25,8 @@
  *   from: number,
  *   to: number,
  *   el: HTMLElement,
- *   sourceContainer: Draggable,
- *   targetContainer: Draggable,
+ *   sourceContainer: Sortable,
+ *   targetContainer: Sortable,
  * }} TransferEvent
  *
  * @typedef {{
@@ -50,14 +50,14 @@
  *   dragThreshold?: number,
  *   touchClickDelay?: number,
  *   scrollThreshold?: number,
- * }} DraggableOptions
+ * }} SortableOptions
  *
- * @typedef {Required<DraggableOptions>} ResolvedOptions
+ * @typedef {Required<SortableOptions>} ResolvedOptions
  */
 
 /** @type {ResolvedOptions} */
 const DEFAULTS = {
-  items: "[data-draggable]",
+  items: "[data-sortable]",
   handle: null,
   disabled: null,
   onReorder: null,
@@ -73,7 +73,7 @@ const DEFAULTS = {
 const STYLE_PROPS = ["transform", "transition", "position", "zIndex", "top", "left", "width", "height"];
 const REORDER_COOLDOWN_MS = 50;
 
-/** @type {Map<string, Set<Draggable>>} */
+/** @type {Map<string, Set<Sortable>>} */
 const groups = new Map();
 
 // --- Utilities ---
@@ -182,7 +182,7 @@ function injectStyles() {
       border: 2px dashed rgba(0, 0, 0, 0.15);
       border-radius: 4px;
     }
-    .draggable-active::after {
+    .sortable-active::after {
       content: ""; display: block; position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
       z-index: 9999; cursor: grabbing;
@@ -192,12 +192,12 @@ function injectStyles() {
   document.head.appendChild(s);
 }
 
-// --- Draggable class ---
+// --- Sortable class ---
 
-export class Draggable {
+export class Sortable {
   /**
    * @param {HTMLElement} container
-   * @param {DraggableOptions} [opts]
+   * @param {SortableOptions} [opts]
    */
   constructor(container, opts = {}) {
     injectStyles();
@@ -238,16 +238,16 @@ export class Draggable {
     this.scrollElement = null;
     /** @type {boolean} */
     this.scrolling = false;
-    /** @type {Draggable | null} */
+    /** @type {Sortable | null} */
     this.sourceContainer = null;
     /** @type {number} */
     this.sourceIndex = 0;
-    /** @type {Draggable | null} */
+    /** @type {Sortable | null} */
     this.activeContainer = null;
 
     if (this.opts.group) {
       if (!groups.has(this.opts.group)) groups.set(this.opts.group, new Set());
-      /** @type {Set<Draggable>} */ (groups.get(this.opts.group)).add(this);
+      /** @type {Set<Sortable>} */ (groups.get(this.opts.group)).add(this);
     }
 
     this.ac = new AbortController();
@@ -346,7 +346,7 @@ export class Draggable {
     this.liftDraggingElement();
 
     el.setAttribute("data-dragging", "");
-    this.el.classList.add("draggable-active");
+    this.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
     /** @type {any} */ (document.body.style).webkitUserSelect = "none";
     document.body.style.cursor = "grabbing";
@@ -478,9 +478,9 @@ export class Draggable {
    * @param {number} cy
    */
   checkContainerTransfer(cx, cy) {
-    if (hitTest(cx, cy, /** @type {Draggable} */ (this.activeContainer).el)) return;
+    if (hitTest(cx, cy, /** @type {Sortable} */ (this.activeContainer).el)) return;
 
-    const group = /** @type {Set<Draggable>} */ (groups.get(/** @type {string} */ (this.opts.group)));
+    const group = /** @type {Set<Sortable>} */ (groups.get(/** @type {string} */ (this.opts.group)));
     for (const other of group) {
       if (other === this.activeContainer) continue;
       if (hitTest(cx, cy, other.el)) {
@@ -491,11 +491,11 @@ export class Draggable {
   }
 
   /**
-   * @param {Draggable} target
+   * @param {Sortable} target
    * @param {number} cy
    */
   transferToContainer(target, cy) {
-    const oldContainer = /** @type {Draggable} */ (this.activeContainer);
+    const oldContainer = /** @type {Sortable} */ (this.activeContainer);
     const dragging = /** @type {HTMLElement} */ (this.draggingEl);
     const ph = /** @type {HTMLElement} */ (this.placeholder);
     const siblings = this.items.filter(el => el !== dragging);
@@ -510,7 +510,7 @@ export class Draggable {
 
     // Move placeholder between containers
     ph.remove();
-    oldContainer.el.classList.remove("draggable-active");
+    oldContainer.el.classList.remove("sortable-active");
 
     const insertIdx = this.computeInsertionIndex(targetItems, cy);
     if (insertIdx >= targetItems.length) {
@@ -518,7 +518,7 @@ export class Draggable {
     } else {
       target.el.insertBefore(ph, targetItems[insertIdx]);
     }
-    target.el.classList.add("draggable-active");
+    target.el.classList.add("sortable-active");
 
     // Rebuild tracking
     this.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
@@ -672,11 +672,11 @@ export class Draggable {
       child.removeAttribute("data-dragging");
     }
 
-    const sc = /** @type {Draggable} */ (this.sourceContainer);
-    const tc = /** @type {Draggable} */ (this.activeContainer);
+    const sc = /** @type {Sortable} */ (this.sourceContainer);
+    const tc = /** @type {Sortable} */ (this.activeContainer);
 
-    tc.el.classList.remove("draggable-active");
-    this.el.classList.remove("draggable-active");
+    tc.el.classList.remove("sortable-active");
+    this.el.classList.remove("sortable-active");
     document.body.style.userSelect = "";
     /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";

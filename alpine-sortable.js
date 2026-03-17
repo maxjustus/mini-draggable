@@ -1,13 +1,13 @@
-// Alpine.js bindings for the vanilla Draggable library.
-// Maps x-sortable, x-draggable, and x-draggable-handle directives
-// to data attributes consumed by the Draggable class.
+// Alpine.js bindings for the vanilla Sortable library.
+// Maps x-sortable, x-sortable-item, and x-sortable-handle directives
+// to data attributes consumed by the Sortable class.
 //
 // Usage:
 //   x-sortable="items"          -- auto-splices the bound array on reorder
 //   x-sortable.board="items"    -- grouped containers for cross-list transfer
 //   x-sortable                  -- event-only, handle @reorder yourself
 
-import { Draggable } from "./draggable.js";
+import { Sortable } from "./sortable.js";
 
 let stylesInjected = false;
 function injectStyles() {
@@ -43,9 +43,9 @@ export default function AlpineSortable(Alpine) {
       evaluate(expression).splice(i, 0, item);
     };
 
-    const d = new Draggable(el, {
-      items: "[data-draggable]",
-      handle: "[data-draggable-handle]",
+    const d = new Sortable(el, {
+      items: "[data-sortable]",
+      handle: "[data-sortable-handle]",
       disabled: (/** @type {HTMLElement} */ item) => item.hasAttribute("data-drag-disabled"),
       group,
       onReorder(/** @type {{from: number, to: number}} */ { from, to }) {
@@ -58,7 +58,7 @@ export default function AlpineSortable(Alpine) {
           bubbles: true,
         }));
       },
-      onTransfer(/** @type {{from: number, to: number, sourceContainer: Draggable, targetContainer: Draggable}} */ { from, to, sourceContainer, targetContainer }) {
+      onTransfer(/** @type {{from: number, to: number, sourceContainer: Sortable, targetContainer: Sortable}} */ { from, to, sourceContainer, targetContainer }) {
         const item = sourceContainer.meta.spliceOut?.(from);
         if (item !== undefined) targetContainer.meta.spliceIn?.(to, item);
         el.dispatchEvent(new CustomEvent("transfer", {
@@ -72,14 +72,14 @@ export default function AlpineSortable(Alpine) {
     cleanup(() => d.destroy());
   });
 
-  Alpine.directive("draggable", (/** @type {HTMLElement} */ el, /** @type {{modifiers: string[]}} */ { modifiers }) => {
-    el.setAttribute("data-draggable", "");
+  Alpine.directive("sortable-item", (/** @type {HTMLElement} */ el, /** @type {{modifiers: string[]}} */ { modifiers }) => {
+    el.setAttribute("data-sortable", "");
     if (modifiers.includes("handle")) el.setAttribute("data-needs-handle", "");
     if (modifiers.includes("disabled")) el.setAttribute("data-drag-disabled", "");
   });
 
-  Alpine.directive("draggable-handle", (/** @type {HTMLElement} */ el) => {
-    el.setAttribute("data-draggable-handle", "");
+  Alpine.directive("sortable-handle", (/** @type {HTMLElement} */ el) => {
+    el.setAttribute("data-sortable-handle", "");
     el.style.cursor = "grab";
   });
 }

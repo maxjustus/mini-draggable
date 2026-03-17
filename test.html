@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alpine Draggable Test</title>
+  <title>Alpine Sortable Test</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
@@ -86,14 +86,14 @@
 </head>
 <body>
 
-  <!-- Test 1: Basic draggable -->
-  <h2>1. Basic draggable</h2>
+  <!-- Test 1: Basic sortable -->
+  <h2>1. Basic sortable</h2>
   <div x-data="{ items: ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry'], log: '' }"
        x-sortable="items"
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item">
-        <li class="item" x-draggable x-text="item"></li>
+        <li class="item" x-sortable-item x-text="item"></li>
       </template>
     </ul>
     <div class="log" x-text="log"></div>
@@ -106,8 +106,8 @@
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item">
-        <li class="item" x-draggable.handle>
-          <span class="handle" x-draggable-handle>&#x2630;</span>
+        <li class="item" x-sortable-item.handle>
+          <span class="handle" x-sortable-handle>&#x2630;</span>
           <span x-text="item"></span>
         </li>
       </template>
@@ -132,7 +132,7 @@
       <template x-for="item in items" :key="item.name">
         <li class="item"
             :class="item.disabled && 'item--disabled'"
-            x-draggable
+            x-sortable-item
             :data-drag-disabled="item.disabled || false"
             x-text="item.name"></li>
       </template>
@@ -148,7 +148,7 @@
          @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
       <ul class="list">
         <template x-for="item in items" :key="item">
-          <li class="item" x-draggable x-text="item"></li>
+          <li class="item" x-sortable-item x-text="item"></li>
         </template>
       </ul>
     </div>
@@ -177,7 +177,7 @@
     <ul class="grid">
       <template x-for="item in items" :key="item.label">
         <li class="grid-item"
-            x-draggable
+            x-sortable-item
             :style="`
               grid-column: span ${item.w};
               grid-row: span ${item.h};
@@ -207,7 +207,7 @@
        @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
     <ul class="list">
       <template x-for="item in items" :key="item.id">
-        <li class="item" x-draggable x-text="item.text"></li>
+        <li class="item" x-sortable-item x-text="item.text"></li>
       </template>
     </ul>
     <div class="log" x-text="log"></div>
@@ -229,7 +229,7 @@
         <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
             x-sortable.board="todo">
           <template x-for="item in todo" :key="item">
-            <li class="item" x-draggable x-text="item"></li>
+            <li class="item" x-sortable-item x-text="item"></li>
           </template>
         </ul>
       </div>
@@ -238,7 +238,7 @@
         <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
             x-sortable.board="doing">
           <template x-for="item in doing" :key="item">
-            <li class="item" x-draggable x-text="item"></li>
+            <li class="item" x-sortable-item x-text="item"></li>
           </template>
         </ul>
       </div>
@@ -247,7 +247,7 @@
         <ul class="list" style="min-height: 60px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;"
             x-sortable.board="done">
           <template x-for="item in done" :key="item">
-            <li class="item" x-draggable x-text="item"></li>
+            <li class="item" x-sortable-item x-text="item"></li>
           </template>
         </ul>
       </div>

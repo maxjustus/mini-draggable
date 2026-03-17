@@ -318,7 +318,7 @@
            @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
         <ul class="list">
           <template x-for="item in items" :key="item">
-            <li class="item" x-draggable x-text="item"></li>
+            <li class="item" x-sortable-item x-text="item"></li>
           </template>
         </ul>
         <div class="log" x-text="log"></div>
@@ -328,7 +328,7 @@
     <!-- 2. Handles -->
     <section class="example">
       <div class="example-header">
-        <code>x-draggable.handle</code>
+        <code>x-sortable.handle</code>
         <h2>Drag handles</h2>
         <p>Items can only be dragged from the grip element.</p>
       </div>
@@ -338,8 +338,8 @@
            @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
         <ul class="list">
           <template x-for="item in items" :key="item">
-            <li class="item" x-draggable.handle>
-              <span class="handle" x-draggable-handle>&#x2630;</span>
+            <li class="item" x-sortable-item.handle>
+              <span class="handle" x-sortable-handle>&#x2630;</span>
               <span x-text="item"></span>
             </li>
           </template>
@@ -371,7 +371,7 @@
           <template x-for="item in items" :key="item.name">
             <li class="item"
                 :class="item.disabled && 'item--disabled'"
-                x-draggable
+                x-sortable-item
                 :data-drag-disabled="item.disabled || false"
                 x-text="item.name"></li>
           </template>
@@ -394,7 +394,7 @@
              @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
           <ul class="list">
             <template x-for="item in items" :key="item">
-              <li class="item" x-draggable x-text="item"></li>
+              <li class="item" x-sortable-item x-text="item"></li>
             </template>
           </ul>
         </div>
@@ -430,7 +430,7 @@
         <ul class="grid">
           <template x-for="item in items" :key="item.label">
             <li class="grid-item"
-                x-draggable
+                x-sortable-item
                 :style="`
                   grid-column: span ${item.w};
                   grid-row: span ${item.h};
@@ -467,7 +467,7 @@
            @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
         <ul class="list">
           <template x-for="item in items" :key="item.id">
-            <li class="item" x-draggable x-text="item.text"></li>
+            <li class="item" x-sortable-item x-text="item.text"></li>
           </template>
         </ul>
         <div class="log" x-text="log"></div>
@@ -495,7 +495,7 @@
             <h3>To Do</h3>
             <ul class="list" x-sortable.board="todo">
               <template x-for="item in todo" :key="item">
-                <li class="item" x-draggable x-text="item"></li>
+                <li class="item" x-sortable-item x-text="item"></li>
               </template>
             </ul>
           </div>
@@ -503,7 +503,7 @@
             <h3>Doing</h3>
             <ul class="list" x-sortable.board="doing">
               <template x-for="item in doing" :key="item">
-                <li class="item" x-draggable x-text="item"></li>
+                <li class="item" x-sortable-item x-text="item"></li>
               </template>
             </ul>
           </div>
@@ -511,7 +511,7 @@
             <h3>Done</h3>
             <ul class="list" x-sortable.board="done">
               <template x-for="item in done" :key="item">
-                <li class="item" x-draggable x-text="item"></li>
+                <li class="item" x-sortable-item x-text="item"></li>
               </template>
             </ul>
           </div>
