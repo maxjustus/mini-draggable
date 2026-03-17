@@ -294,15 +294,18 @@ export class Draggable {
     if (this.state !== "dragging" || !this.scrolling) { this.scrolling = false; return; }
     requestAnimationFrame(() => this.scrollLoop());
 
-    const s = this.shouldScroll();
-    const st = this.scrollTarget;
     const d = this.edgeDistances();
     const t = this.scrollThresholds();
+    const st = this.scrollTarget;
 
-    if (s.up)    st.scrollBy(0, -Math.pow(2, (t.y - d.top) / 28));
-    if (s.right)  st.scrollBy(Math.pow(2, (t.x - d.right) / 28), 0);
-    if (s.down)   st.scrollBy(0, Math.pow(2, (t.y - d.bottom) / 28));
-    if (s.left)   st.scrollBy(-Math.pow(2, (t.x - d.left) / 28), 0);
+    if (d.top < t.y && st.scrollY > 0)
+      st.scrollBy(0, -Math.pow(2, (t.y - d.top) / 28));
+    if (d.right < t.x && (st.scrollX + st.width) < st.scrollWidth)
+      st.scrollBy(Math.pow(2, (t.x - d.right) / 28), 0);
+    if (d.bottom < t.y && (st.scrollY + st.height) < st.scrollHeight)
+      st.scrollBy(0, Math.pow(2, (t.y - d.bottom) / 28));
+    if (d.left < t.x && st.scrollX > 0)
+      st.scrollBy(-Math.pow(2, (t.x - d.left) / 28), 0);
 
     this.updateCurrentIndex();
   }
@@ -384,9 +387,13 @@ export class Draggable {
     const targetItems = [...target.el.querySelectorAll(target.opts.items)]
       .filter(el => el !== this.draggingEl);
 
+    // FIRST: capture item rects + container heights
     const oldRects = captureRects(siblings);
     const targetRects = captureRects(targetItems);
+    const oldContainerHeight = oldContainer.el.getBoundingClientRect().height;
+    const targetContainerHeight = target.el.getBoundingClientRect().height;
 
+    // Move placeholder between containers
     this.placeholder.remove();
     oldContainer.el.classList.remove("draggable-active");
 
@@ -398,6 +405,7 @@ export class Draggable {
     }
     target.el.classList.add("draggable-active");
 
+    // Rebuild tracking
     this.items = [...target.el.querySelectorAll(target.opts.items)]
       .filter(el => el !== this.draggingEl);
     this.items.splice(insertIdx, 0, this.draggingEl);
@@ -407,8 +415,13 @@ export class Draggable {
     this.currentIndex = insertIdx;
     this.activeContainer = target;
 
+    // FLIP animate items
     this.flipAnimate(siblings, oldRects);
     this.flipAnimate(targetItems, targetRects);
+
+    // FLIP animate container heights
+    this.flipContainerHeight(oldContainer.el, oldContainerHeight);
+    this.flipContainerHeight(target.el, targetContainerHeight);
   }
 
   computeInsertionIndex(items, cy) {
@@ -463,6 +476,24 @@ export class Draggable {
       this.animating.add(child);
       setTimeout(() => this.animating.delete(child), ms);
     }
+  }
+
+  flipContainerHeight(container, firstHeight) {
+    const lastHeight = container.getBoundingClientRect().height;
+    if (firstHeight === lastHeight) return;
+
+    container.style.height = `${firstHeight}px`;
+    container.style.transition = "none";
+    container.getClientRects();
+    container.style.transition = `height ${this.opts.transitionMs}ms`;
+    container.style.height = `${lastHeight}px`;
+
+    const cleanup = () => {
+      container.style.height = "";
+      container.style.transition = "";
+    };
+    container.addEventListener("transitionend", cleanup, { once: true });
+    setTimeout(cleanup, this.opts.transitionMs + 50);
   }
 
   // --- Drop ---
