@@ -62,8 +62,9 @@ function createPlaceholder(source) {
     `grid-column:${cs.gridColumn}`, `grid-row:${cs.gridRow}`, `grid-area:${cs.gridArea}`,
     `flex-grow:${cs.flexGrow}`, `flex-shrink:${cs.flexShrink}`, `flex-basis:${cs.flexBasis}`,
     `align-self:${cs.alignSelf}`,
-    "visibility:hidden", "pointer-events:none",
+    "pointer-events:none",
   ].join(";");
+  ph.textContent = "";
   return ph;
 }
 
@@ -97,6 +98,11 @@ function injectStyles() {
   stylesInjected = true;
   const s = document.createElement("style");
   s.textContent = `
+    [data-drag-placeholder] {
+      background: rgba(0, 0, 0, 0.05);
+      border: 2px dashed rgba(0, 0, 0, 0.15);
+      border-radius: 4px;
+    }
     .draggable-active::after {
       content: ""; display: block; position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;

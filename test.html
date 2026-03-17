@@ -216,9 +216,9 @@
   <!-- Test 7: Multi-column (Trello-style) -->
   <h2>7. Multi-column (Trello-style)</h2>
   <div x-data="{
-         todo: ['Design mockups', 'Write tests', 'Update docs'],
-         doing: ['Build feature', 'Code review'],
-         done: ['Setup repo', 'Initial commit'],
+         todo: ['Design mockups for the new landing page and get stakeholder sign-off', 'Write tests', 'Update docs with migration guide and new API examples'],
+         doing: ['Build the drag-and-drop feature with cross-container support, animation, and touch handling', 'Code review'],
+         done: ['Setup repo', 'Initial commit with project scaffold, CI config, and dev tooling'],
          log: ''
        }"
        @transfer="log = `Transferred from idx ${$event.detail.from} to idx ${$event.detail.to}`"

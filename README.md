@@ -94,9 +94,19 @@ During drag, the following attributes/classes are applied:
 |----------|-----------|------|
 | `[data-dragging]` | The item being dragged | During drag |
 | `.draggable-active` | The container | During drag |
-| `[data-drag-placeholder]` | The placeholder element | During drag |
+| `[data-drag-placeholder]` | The placeholder element | During drag (visible drop indicator, override default style with CSS) |
 
-The dragged item gets `position: fixed` with inline styles. The placeholder is a `visibility: hidden` element that preserves the dragged item's space in the layout. All inline styles are cleaned up on drop.
+The dragged item gets `position: fixed` with inline styles. The placeholder preserves the dragged item's space in the layout and shows a dashed drop indicator by default. Override with your own CSS:
+
+```css
+[data-drag-placeholder] {
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed rgba(59, 130, 246, 0.4);
+  border-radius: 6px;
+}
+```
+
+All inline styles are cleaned up on drop.
 
 ### CSS grid
 
