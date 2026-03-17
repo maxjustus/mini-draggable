@@ -438,5 +438,20 @@ export class Draggable {
     if (from !== to && this.opts.onReorder) {
       requestAnimationFrame(() => this.opts.onReorder({ from, to }));
     }
+
+    // Force Safari to rebuild compositing layers so hit-test
+    // coordinates stay aligned with visual positions after scroll.
+    this.repaintItems();
+  }
+
+  // Workaround: Safari can desync hit-test coordinates from visual
+  // positions after scroll + transform. Toggling will-change forces
+  // a compositing layer rebuild.
+  repaintItems() {
+    const items = this.el.querySelectorAll(this.opts.items);
+    for (const child of items) child.style.willChange = "transform";
+    requestAnimationFrame(() => {
+      for (const child of items) child.style.willChange = "";
+    });
   }
 }
