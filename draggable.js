@@ -71,6 +71,7 @@ const DEFAULTS = {
 
 /** @type {readonly string[]} */
 const STYLE_PROPS = ["transform", "transition", "position", "zIndex", "top", "left", "width", "height"];
+const REORDER_COOLDOWN_MS = 50;
 
 /** @type {Map<string, Set<Draggable>>} */
 const groups = new Map();
@@ -225,6 +226,8 @@ export class Draggable {
     this.startIndex = 0;
     /** @type {number} */
     this.currentIndex = 0;
+    /** @type {number} */
+    this.lastReorderTime = 0;
     /** @type {Point} */
     this.initialPointer = { x: 0, y: 0 };
     /** @type {Point} */
@@ -445,6 +448,7 @@ export class Draggable {
 
   updateCurrentIndex() {
     if (!this.draggingEl || this.state !== "dragging") return;
+    if (Date.now() - this.lastReorderTime < REORDER_COOLDOWN_MS) return;
 
     const r = this.draggingEl.getBoundingClientRect();
     const cx = r.left + r.width / 2;
@@ -558,6 +562,7 @@ export class Draggable {
     this.movePlaceholder(newOrder);
     newOrder.forEach((child, i) => this.indices.set(child, i));
     this.flipAnimate(siblings, firstRects);
+    this.lastReorderTime = Date.now();
   }
 
   /** @param {HTMLElement[]} newOrder */
@@ -686,6 +691,7 @@ export class Draggable {
     this.items = [];
     this.indices.clear();
     this.animating.clear();
+    this.lastReorderTime = 0;
     this.scrollTarget = null;
     this.scrollElement = null;
     this.sourceContainer = null;
