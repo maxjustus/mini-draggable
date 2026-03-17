@@ -452,7 +452,6 @@ export class Draggable {
 
     for (const child of this.items) {
       if (child === this.draggingEl) continue;
-      if (/** @type {Draggable} */ (this.activeContainer).opts.disabled?.(child)) continue;
       if (this.animating.has(child)) continue;
 
       if (hitTest(cx, cy, child)) {
