@@ -7,20 +7,10 @@
 //   x-sortable.board="items"    -- grouped containers for cross-list transfer
 //   x-sortable                  -- event-only, handle @reorder yourself
 
-import { Sortable } from "./sortable.js";
-
-let stylesInjected = false;
-function injectStyles() {
-  if (stylesInjected) return;
-  stylesInjected = true;
-  const s = document.createElement("style");
-  s.textContent = `[x-sortable] { position: relative; }`;
-  document.head.appendChild(s);
-}
+import { Sortable, arrMove } from "./sortable.js";
 
 /** @param {any} Alpine */
 export default function AlpineSortable(Alpine) {
-  injectStyles();
 
   Alpine.directive("sortable", (/** @type {HTMLElement} */ el, /** @type {{expression: string, modifiers: string[]}} */ { expression, modifiers }, /** @type {{evaluate: (expr: string) => any, cleanup: (fn: () => void) => void}} */ { evaluate, cleanup }) => {
     const group = modifiers[0] || null;
@@ -44,14 +34,11 @@ export default function AlpineSortable(Alpine) {
     };
 
     const d = new Sortable(el, {
-      items: "[data-sortable]",
       handle: "[data-sortable-handle]",
-      disabled: (/** @type {HTMLElement} */ item) => item.hasAttribute("data-drag-disabled"),
       group,
       onReorder(/** @type {{from: number, to: number}} */ { from, to }) {
         if (expression) {
-          const arr = evaluate(expression);
-          arr.splice(to, 0, arr.splice(from, 1)[0]);
+          arrMove(evaluate(expression), from, to);
         }
         el.dispatchEvent(new CustomEvent("reorder", {
           detail: { from, to },
@@ -74,7 +61,6 @@ export default function AlpineSortable(Alpine) {
 
   Alpine.directive("sortable-item", (/** @type {HTMLElement} */ el, /** @type {{modifiers: string[]}} */ { modifiers }) => {
     el.setAttribute("data-sortable", "");
-    if (modifiers.includes("handle")) el.setAttribute("data-needs-handle", "");
     if (modifiers.includes("disabled")) el.setAttribute("data-drag-disabled", "");
   });
 

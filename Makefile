@@ -3,3 +3,6 @@ serve:
 
 check:
 	npx tsc --noEmit
+
+test:
+	npx playwright test

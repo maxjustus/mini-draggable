@@ -25,6 +25,23 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* --- Sortable drag feedback --- */
+
+    [data-drag-placeholder] {
+      background: rgba(255, 255, 255, 0.03);
+      border: 2px dashed var(--border);
+      border-radius: 0;
+    }
+
+    .sortable-active::after {
+      content: "";
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      cursor: grabbing;
+    }
+
     body {
       font-family: var(--mono);
       background: var(--bg);
@@ -157,6 +174,7 @@
       line-height: 1.5;
       cursor: grab;
       color: var(--text);
+      transition: border 150ms, box-shadow 150ms;
     }
     .item:last-child { border-bottom: 1px solid var(--border); }
 
@@ -218,6 +236,7 @@
       user-select: none;
       cursor: grab;
       color: var(--text);
+      transition: border-color 150ms, box-shadow 150ms;
     }
 
     .grid-item[data-dragging] {

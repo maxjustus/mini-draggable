@@ -59,7 +59,7 @@
 const DEFAULTS = {
   items: "[data-sortable]",
   handle: null,
-  disabled: null,
+  disabled: (/** @type {HTMLElement} */ el) => el.hasAttribute("data-drag-disabled"),
   onReorder: null,
   onTransfer: null,
   group: null,
@@ -85,12 +85,13 @@ function pointerPos(e) {
 }
 
 /**
- * @param {HTMLElement[]} arr
+ * @template T
+ * @param {T[]} arr
  * @param {number} from
  * @param {number} to
- * @returns {HTMLElement[]}
+ * @returns {T[]}
  */
-function arrMove(arr, from, to) {
+export function arrMove(arr, from, to) {
   arr.splice(to, 0, arr.splice(from, 1)[0]);
   return arr;
 }
@@ -171,27 +172,6 @@ function buildScrollTarget(scrollEl) {
   };
 }
 
-let stylesInjected = false;
-function injectStyles() {
-  if (stylesInjected) return;
-  stylesInjected = true;
-  const s = document.createElement("style");
-  s.textContent = `
-    [data-drag-placeholder] {
-      background: rgba(0, 0, 0, 0.05);
-      border: 2px dashed rgba(0, 0, 0, 0.15);
-      border-radius: 4px;
-    }
-    .sortable-active::after {
-      content: ""; display: block; position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 9999; cursor: grabbing;
-      user-select: none; -webkit-user-select: none;
-    }
-  `;
-  document.head.appendChild(s);
-}
-
 // --- Sortable class ---
 
 export class Sortable {
@@ -200,7 +180,6 @@ export class Sortable {
    * @param {SortableOptions} [opts]
    */
   constructor(container, opts = {}) {
-    injectStyles();
     this.el = container;
     /** @type {ResolvedOptions} */
     this.opts = { ...DEFAULTS, ...opts };
@@ -285,7 +264,7 @@ export class Sortable {
     const item = /** @type {HTMLElement | null} */ (target.closest(this.opts.items));
     if (!item || !this.el.contains(item)) return;
     if (this.opts.disabled?.(item)) return;
-    if (this.opts.handle && item.hasAttribute("data-needs-handle")) {
+    if (this.opts.handle && item.querySelector(this.opts.handle)) {
       const handle = target.closest(this.opts.handle);
       if (!handle || !item.contains(handle)) return;
     }
@@ -344,8 +323,9 @@ export class Sortable {
     this.initScroll();
     this.insertPlaceholder();
     this.liftDraggingElement();
-
-    el.setAttribute("data-dragging", "");
+    el.getClientRects(); // reflow at lifted position with base styles
+    el.style.transition = ""; // clear inline override, let CSS transitions work
+    el.setAttribute("data-dragging", ""); // CSS transition now animates border/shadow
     this.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
     /** @type {any} */ (document.body.style).webkitUserSelect = "none";
@@ -645,8 +625,14 @@ export class Sortable {
     const el = /** @type {HTMLElement} */ (this.draggingEl);
     const target = /** @type {HTMLElement} */ (this.placeholder).getBoundingClientRect();
     const box = /** @type {DOMRect} */ (this.draggingBox);
-    el.style.transition = this.transitionCSS;
+    // Merge CSS-defined transitions (e.g. border, box-shadow) with the
+    // transform animation so visual styles can fade out alongside the slide.
+    const cssTransition = getComputedStyle(el).transition;
+    el.style.transition = cssTransition && !cssTransition.startsWith("all 0s")
+      ? `${this.transitionCSS}, ${cssTransition}`
+      : this.transitionCSS;
     el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
+    el.removeAttribute("data-dragging");
 
     let settled = false;
     const settle = () => {

@@ -90,25 +90,38 @@ d.destroy();
 
 ### Styling
 
-During drag, the following attributes/classes are applied:
+The library applies attributes and classes during drag but injects no CSS. Add your own styles to control the appearance.
+
+**Selectors applied during drag:**
 
 | Selector | Applied to | When |
 |----------|-----------|------|
 | `[data-dragging]` | The item being dragged | During drag |
 | `.sortable-active` | The container | During drag |
-| `[data-drag-placeholder]` | The placeholder element | During drag (visible drop indicator, override default style with CSS) |
+| `[data-drag-placeholder]` | The placeholder element | During drag |
 
-The dragged item gets `position: fixed` with inline styles. The placeholder preserves the dragged item's space in the layout and shows a dashed drop indicator by default. Override with your own CSS:
+**Quick-start CSS** -- minimal placeholder and drag cursor:
 
 ```css
+/* Placeholder -- the gap left by the dragged item */
 [data-drag-placeholder] {
-  background: rgba(59, 130, 246, 0.1);
-  border: 2px dashed rgba(59, 130, 246, 0.4);
-  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 2px dashed rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+/* Overlay -- prevents interaction and shows grab cursor during drag */
+.sortable-active::after {
+  content: "";
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: grabbing;
 }
 ```
 
-All inline styles are cleaned up on drop.
+The dragged item gets `position: fixed` with inline styles during drag. The placeholder copies computed grid/flex layout properties from the source element so multi-span items preserve the layout. All inline styles are cleaned up on drop.
 
 ### CSS grid
 
@@ -337,12 +350,110 @@ The `@reorder` event fires for moves within the same list. The `@transfer` event
 
 **`x-sortable-handle`** -- place on the drag grip element inside an `x-sortable-item.handle` item. Sets `cursor: grab` automatically.
 
+## React / Preact
+
+`hooks-sortable.js` exports a factory function. Pass in `useEffect` and `useRef` from whichever framework you're using — the hook API is identical for both.
+
+```js
+// React
+import { useEffect, useRef } from 'react';
+// Preact
+import { useEffect, useRef } from 'preact/hooks';
+
+import { createUseSortable, arrMove } from './hooks-sortable.js';
+const useSortable = createUseSortable({ useEffect, useRef });
+```
+
+### Basic list
+
+```jsx
+function SortableList() {
+  const [items, setItems] = useState(['Apple', 'Banana', 'Cherry']);
+
+  const ref = useSortable({
+    onReorder({ from, to }) {
+      setItems(prev => arrMove([...prev], from, to));
+    },
+  });
+
+  return (
+    <ul ref={ref}>
+      {items.map(item => (
+        <li key={item} data-sortable>{item}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### With handles
+
+Pass `handle: true`. Add `data-sortable-handle` to the grip element.
+
+```jsx
+const ref = useSortable({ handle: true, onReorder });
+
+<li data-sortable>
+  <span data-sortable-handle>&#x2630;</span>
+  {item}
+</li>
+```
+
+### Cross-container (Kanban)
+
+Use `spliceOut` and `spliceIn` for cross-container transfer. Read current state synchronously via a ref to avoid stale closures in `spliceOut`.
+
+```jsx
+function KanbanBoard() {
+  const [todo,  setTodo]  = useState(['Design', 'Write tests']);
+  const [done,  setDone]  = useState(['Setup repo']);
+
+  const todoRef = useRef(todo); todoRef.current = todo;
+  const doneRef = useRef(done); doneRef.current = done;
+
+  function makeOpts(getRef, setState) {
+    return {
+      group: 'board',
+      onReorder({ from, to }) {
+        setState(prev => arrMove([...prev], from, to));
+      },
+      spliceOut(i) {
+        const item = getRef().current[i];
+        setState(prev => prev.filter((_, idx) => idx !== i));
+        return item;
+      },
+      spliceIn(i, item) {
+        setState(prev => {
+          const next = [...prev];
+          next.splice(i, 0, item);
+          return next;
+        });
+      },
+    };
+  }
+
+  const todoListRef = useSortable(makeOpts(() => todoRef, setTodo));
+  const doneListRef = useSortable(makeOpts(() => doneRef, setDone));
+
+  return (
+    <>
+      <ul ref={todoListRef}>
+        {todo.map(item => <li key={item} data-sortable>{item}</li>)}
+      </ul>
+      <ul ref={doneListRef}>
+        {done.map(item => <li key={item} data-sortable>{item}</li>)}
+      </ul>
+    </>
+  );
+}
+```
+
 ## Development
 
-ES module imports require a local server. To view the test page:
+ES module imports require a local server. To view the test pages:
 
 ```
 make serve
 ```
 
-Then open http://localhost:3813/test.html
+Then open http://localhost:3813/test.html or http://localhost:3813/test-react.html

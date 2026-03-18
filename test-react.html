@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hooks Sortable Test (Preact)</title>
+  <link rel="stylesheet" href="test-styles.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    import { h, render, Fragment } from 'https://esm.sh/preact@10';
+    import { useState, useRef, useEffect } from 'https://esm.sh/preact@10/hooks';
+    import htm from 'https://esm.sh/htm@3';
+    import { createUseSortable, arrMove } from './hooks-sortable.js';
+
+    const html = htm.bind(h);
+    const useSortable = createUseSortable({ useEffect, useRef });
+
+    // --- 1. Basic list ---
+
+    function BasicList() {
+      const [items, setItems] = useState(['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry']);
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <ul class="list" ref=${ref}>
+            ${items.map(item => html`<li key=${item} class="item" data-sortable>${item}</li>`)}
+          </ul>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 2. Handles ---
+
+    function HandleList() {
+      const [items, setItems] = useState(['Red', 'Green', 'Blue', 'Yellow']);
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        handle: true,
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <ul class="list" ref=${ref}>
+            ${items.map(item => html`
+              <li key=${item} class="item" data-sortable>
+                <span class="handle" data-sortable-handle>☰</span>
+                ${item}
+              </li>
+            `)}
+          </ul>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 3. Disabled items ---
+
+    function DisabledList() {
+      const [items, setItems] = useState([
+        { name: 'Movable A', disabled: false },
+        { name: 'Pinned (disabled)', disabled: true },
+        { name: 'Movable B', disabled: false },
+        { name: 'Movable C', disabled: false },
+      ]);
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        disabled: (el) => el.hasAttribute('data-drag-disabled'),
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <ul class="list" ref=${ref}>
+            ${items.map(item => html`
+              <li key=${item.name}
+                  class=${'item' + (item.disabled ? ' item--disabled' : '')}
+                  data-sortable
+                  data-drag-disabled=${item.disabled || undefined}>
+                ${item.name}
+              </li>
+            `)}
+          </ul>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 4. Scrollable container ---
+
+    function ScrollableList() {
+      const [items, setItems] = useState(
+        Array.from({ length: 20 }, (_, i) => `Item ${i + 1}`)
+      );
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <div class="scrollable" ref=${ref}>
+            <ul class="list">
+              ${items.map(item => html`<li key=${item} class="item" data-sortable>${item}</li>`)}
+            </ul>
+          </div>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 5. Grid with varied sizes ---
+
+    function GridDemo() {
+      const [items, setItems] = useState([
+        { label: 'A', w: 1, h: 1, color: '#e8f5e9' },
+        { label: 'B', w: 2, h: 1, color: '#e3f2fd' },
+        { label: 'C', w: 1, h: 1, color: '#fff3e0' },
+        { label: 'D', w: 1, h: 2, color: '#fce4ec' },
+        { label: 'E', w: 1, h: 1, color: '#f3e5f5' },
+        { label: 'F', w: 1, h: 1, color: '#e0f7fa' },
+        { label: 'G', w: 2, h: 1, color: '#fff9c4' },
+        { label: 'H', w: 1, h: 1, color: '#efebe9' },
+        { label: 'I', w: 1, h: 1, color: '#e8eaf6' },
+        { label: 'J', w: 1, h: 1, color: '#f1f8e9' },
+      ]);
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved ${items[from].label} from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <ul class="grid" ref=${ref}>
+            ${items.map(item => html`
+              <li key=${item.label}
+                  class="grid-item"
+                  data-sortable
+                  style=${{
+                    gridColumn: `span ${item.w}`,
+                    gridRow: `span ${item.h}`,
+                    minHeight: `${item.h * 60}px`,
+                    background: item.color,
+                  }}>
+                ${item.label}
+              </li>
+            `)}
+          </ul>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 6. Variable height items ---
+
+    function VariableHeightList() {
+      const [items, setItems] = useState([
+        { id: 1, text: 'Short item' },
+        { id: 2, text: 'This item has quite a bit more content in it so it will naturally wrap to multiple lines and be taller than the others' },
+        { id: 3, text: 'Medium length item with some extra text' },
+        { id: 4, text: 'Tiny' },
+        { id: 5, text: 'Another tall one. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' },
+        { id: 6, text: 'Regular item' },
+      ]);
+      const [log, setLog] = useState('');
+
+      const ref = useSortable({
+        onReorder({ from, to }) {
+          setItems(prev => arrMove([...prev], from, to));
+          setLog(`Moved from ${from} to ${to}`);
+        },
+      });
+
+      return html`
+        <div>
+          <ul class="list" ref=${ref}>
+            ${items.map(item => html`<li key=${item.id} class="item" data-sortable>${item.text}</li>`)}
+          </ul>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- 7. Cross-container (Kanban) ---
+
+    function KanbanBoard() {
+      const [todo,  setTodo]  = useState(['Design mockups', 'Write tests', 'Update docs']);
+      const [doing, setDoing] = useState(['Build drag-and-drop', 'Code review']);
+      const [done,  setDone]  = useState(['Setup repo', 'Initial commit']);
+      const [log, setLog] = useState('');
+
+      // useRef so spliceOut can read current state synchronously
+      const todoRef  = useRef(todo);  todoRef.current  = todo;
+      const doingRef = useRef(doing); doingRef.current = doing;
+      const doneRef  = useRef(done);  doneRef.current  = done;
+
+      function makeOpts(stateRef, setState) {
+        return {
+          group: 'kanban',
+          onReorder({ from, to }) {
+            setState(prev => arrMove([...prev], from, to));
+            setLog(`Reordered from ${from} to ${to}`);
+          },
+          spliceOut(i) {
+            const item = stateRef.current[i];
+            setState(prev => prev.filter((_, idx) => idx !== i));
+            return item;
+          },
+          spliceIn(i, item) {
+            setState(prev => {
+              const next = [...prev];
+              next.splice(i, 0, item);
+              return next;
+            });
+            setLog(`Transferred to index ${i}`);
+          },
+        };
+      }
+
+      const todoRef2  = useSortable(makeOpts(todoRef,  setTodo));
+      const doingRef2 = useSortable(makeOpts(doingRef, setDoing));
+      const doneRef2  = useSortable(makeOpts(doneRef,  setDone));
+
+      return html`
+        <div>
+          <div class="kanban">
+            <div class="kanban-col">
+              <h3>To Do</h3>
+              <ul class="list" ref=${todoRef2}>
+                ${todo.map(item => html`<li key=${item} class="item" data-sortable>${item}</li>`)}
+              </ul>
+            </div>
+            <div class="kanban-col">
+              <h3>Doing</h3>
+              <ul class="list" ref=${doingRef2}>
+                ${doing.map(item => html`<li key=${item} class="item" data-sortable>${item}</li>`)}
+              </ul>
+            </div>
+            <div class="kanban-col">
+              <h3>Done</h3>
+              <ul class="list" ref=${doneRef2}>
+                ${done.map(item => html`<li key=${item} class="item" data-sortable>${item}</li>`)}
+              </ul>
+            </div>
+          </div>
+          <div class="log">${log}</div>
+        </div>
+      `;
+    }
+
+    // --- App ---
+
+    function App() {
+      return html`
+        <${Fragment}>
+          <h2>1. Basic list</h2>
+          <${BasicList} />
+
+          <h2>2. Drag handles</h2>
+          <${HandleList} />
+
+          <h2>3. Disabled items</h2>
+          <${DisabledList} />
+
+          <h2>4. Scrollable container</h2>
+          <${ScrollableList} />
+
+          <h2>5. Grid with varied sizes</h2>
+          <${GridDemo} />
+
+          <h2>6. Variable height items</h2>
+          <${VariableHeightList} />
+
+          <h2>7. Cross-container (Kanban)</h2>
+          <${KanbanBoard} />
+        <//>
+      `;
+    }
+
+    render(html`<${App} />`, document.getElementById('app'));
+  </script>
+</body>
+</html>
