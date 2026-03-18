@@ -1,6 +1,6 @@
-// Alpine.js bindings for the vanilla Sortable library.
+// Alpine.js bindings for the vanilla sortable library.
 // Maps x-sortable, x-sortable-item, and x-sortable-handle directives
-// to data attributes consumed by the Sortable class.
+// to data attributes consumed by sortable().
 //
 // Usage:
 //   x-sortable="items"          -- auto-splices the bound array on reorder
@@ -12,7 +12,11 @@ import { sortable, arrMove } from "./sortable.js";
 /** @param {any} Alpine */
 export default function AlpineSortable(Alpine) {
 
-  Alpine.directive("sortable", (/** @type {HTMLElement} */ el, /** @type {{expression: string, modifiers: string[]}} */ { expression, modifiers }, /** @type {{evaluate: (expr: string) => any, cleanup: (fn: () => void) => void}} */ { evaluate, cleanup }) => {
+  Alpine.directive("sortable", (
+    /** @type {HTMLElement} */ el,
+    /** @type {{expression: string, modifiers: string[]}} */ { expression, modifiers },
+    /** @type {{evaluate: (expr: string) => any, cleanup: (fn: () => void) => void}} */ { evaluate, cleanup },
+  ) => {
     const group = modifiers[0] || null;
 
     /**
@@ -36,7 +40,8 @@ export default function AlpineSortable(Alpine) {
     const d = sortable(el, {
       handle: "[data-sortable-handle]",
       group,
-      onReorder(/** @type {{from: number, to: number}} */ { from, to }) {
+      /** @param {import('./sortable.js').ReorderEvent} evt */
+      onReorder({ from, to }) {
         if (expression) {
           arrMove(evaluate(expression), from, to);
         }
@@ -45,7 +50,8 @@ export default function AlpineSortable(Alpine) {
           bubbles: true,
         }));
       },
-      onTransfer(/** @type {{from: number, to: number, sourceContainer: import('./sortable.js').SortableInstance, targetContainer: import('./sortable.js').SortableInstance}} */ { from, to, sourceContainer, targetContainer }) {
+      /** @param {import('./sortable.js').TransferEvent} evt */
+      onTransfer({ from, to, sourceContainer, targetContainer }) {
         const item = sourceContainer.meta.spliceOut?.(from);
         if (item !== undefined) targetContainer.meta.spliceIn?.(to, item);
         el.dispatchEvent(new CustomEvent("transfer", {

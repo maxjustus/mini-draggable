@@ -24,8 +24,8 @@ export { arrMove };
  *   handle?: boolean,
  *   group?: string | null,
  *   disabled?: ((el: HTMLElement) => boolean) | null,
- *   onReorder?: ((event: {from: number, to: number}) => void) | null,
- *   onTransfer?: ((event: {from: number, to: number, sourceContainer: import('./sortable.js').SortableInstance, targetContainer: import('./sortable.js').SortableInstance}) => void) | null,
+ *   onReorder?: ((event: import('./sortable.js').ReorderEvent) => void) | null,
+ *   onTransfer?: ((event: import('./sortable.js').TransferEvent) => void) | null,
  *   spliceOut?: ((i: number) => any) | null,
  *   spliceIn?: ((i: number, item: any) => void) | null,
  * }} UseSortableOptions
@@ -50,8 +50,8 @@ export function createUseSortable({ useEffect, useRef }) {
       const s = sortable(ref.current, {
         handle:   optsRef.current.handle   ? "[data-sortable-handle]" : null,
         group:    optsRef.current.group    ?? null,
-        onReorder: (/** @type {{from: number, to: number}} */ e) => optsRef.current.onReorder?.(e),
-        onTransfer: (/** @type {any} */ e) => {
+        onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) => optsRef.current.onReorder?.(e),
+        onTransfer: (/** @type {import('./sortable.js').TransferEvent} */ e) => {
           const item = e.sourceContainer.meta.spliceOut?.(e.from);
           if (item !== undefined) e.targetContainer.meta.spliceIn?.(e.to, item);
           optsRef.current.onTransfer?.(e);
