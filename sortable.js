@@ -54,6 +54,8 @@ const SETTLE_BUFFER_MS = 50;
 
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
+/** @type {WeakSet<HTMLElement>} */
+const initialized = new WeakSet();
 
 /** @param {MouseEvent | TouchEvent} e @returns {Point} */
 function pointerPos(e) {
@@ -115,6 +117,7 @@ function buildScrollTarget(el) {
     get width() { return el.getBoundingClientRect().width; },
     get height() { return el.getBoundingClientRect().height; },
   };
+
   return {
     scrollBy(x, y) { window.scrollBy(x, y); },
     get scrollX() { return window.scrollX; },
@@ -191,19 +194,14 @@ function repaint(container, selector) {
   requestAnimationFrame(() => { for (const c of items) c.style.willChange = ""; });
 }
 
-/** @param {HTMLElement} el @param {DOMRect} box @param {HTMLElement} container */
-function liftElement(el, box, container) {
+/** @param {HTMLElement} el @param {DOMRect} box */
+function liftElement(el, box) {
   Object.assign(el.style, {
     position: "fixed", zIndex: "10000",
     top: `${box.top}px`, left: `${box.left}px`,
     width: `${box.width}px`, height: `${box.height}px`,
     transition: "none", transform: "translate3d(0, 0, 0)",
   });
-  el.setAttribute("data-dragging", "");
-  container.classList.add("sortable-active");
-  document.body.style.userSelect = "none";
-  /** @type {any} */ (document.body.style).webkitUserSelect = "none";
-  document.body.style.cursor = "grabbing";
 }
 
 /**
@@ -228,24 +226,19 @@ function settle(items, placeholder, inst, activeInst) {
 }
 
 /**
- * @param {HTMLElement | null} scrollEl
- * @param {ScrollTarget} st
- * @param {number} threshold
- * @param {{(): Point}} getPointer
- * @param {{(): boolean}} isActive
- * @param {{(): void}} onTick
+ * @param {{scrollEl: HTMLElement | null, target: ScrollTarget, threshold: number, getPointer: () => Point, isActive: () => boolean, onTick: () => void}} cfg
  * @returns {{start: () => void}}
  */
-function createAutoScroller(scrollEl, st, threshold, getPointer, isActive, onTick) {
+function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isActive, onTick }) {
   let scrolling = false;
 
-  /** @param {Point} pointer @returns {{top: number, right: number, bottom: number, left: number}} */
-  function edgeDist(pointer) {
+  /** @param {Point} p @returns {{top: number, right: number, bottom: number, left: number}} */
+  function edgeDist(p) {
     if (scrollEl) {
       const r = scrollEl.getBoundingClientRect();
-      return { top: pointer.y - r.top, right: r.right - pointer.x, bottom: r.bottom - pointer.y, left: pointer.x - r.left };
+      return { top: p.y - r.top, right: r.right - p.x, bottom: r.bottom - p.y, left: p.x - r.left };
     }
-    return { top: pointer.y, right: innerWidth - pointer.x, bottom: innerHeight - pointer.y, left: pointer.x };
+    return { top: p.y, right: innerWidth - p.x, bottom: innerHeight - p.y, left: p.x };
   }
 
   /** @returns {{x: number, y: number}} */
@@ -255,6 +248,14 @@ function createAutoScroller(scrollEl, st, threshold, getPointer, isActive, onTic
       return { x: Math.min(r.width * 0.25, threshold), y: Math.min(r.height * 0.25, threshold) };
     }
     return { x: threshold, y: threshold };
+  }
+
+  /** @param {{top: number, right: number, bottom: number, left: number}} d @param {{x: number, y: number}} t @returns {boolean} */
+  function shouldScroll(d, t) {
+    return (d.top < t.y && st.scrollY > 0) ||
+           (d.right < t.x && st.scrollX + st.width < st.scrollWidth) ||
+           (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) ||
+           (d.left < t.x && st.scrollX > 0);
   }
 
   function loop() {
@@ -272,17 +273,48 @@ function createAutoScroller(scrollEl, st, threshold, getPointer, isActive, onTic
   return {
     start() {
       if (scrolling) return;
-      const d = edgeDist(getPointer());
-      const t = thresh();
-      if ((d.top < t.y && st.scrollY > 0) ||
-          (d.right < t.x && st.scrollX + st.width < st.scrollWidth) ||
-          (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) ||
-          (d.left < t.x && st.scrollX > 0)) {
+      if (shouldScroll(edgeDist(getPointer()), thresh())) {
         scrolling = true;
         requestAnimationFrame(loop);
       }
     },
   };
+}
+
+/**
+ * Insert placeholder into container at the vertical position closest to cy.
+ * @param {HTMLElement} placeholder
+ * @param {HTMLElement} container
+ * @param {HTMLElement[]} items
+ * @param {number} cy
+ * @returns {number} insertion index
+ */
+function insertPlaceholderAt(placeholder, container, items, cy) {
+  const found = items.findIndex(c => { const r = c.getBoundingClientRect(); return cy < r.top + r.height / 2; });
+  const idx = found === -1 ? items.length : found;
+  if (idx >= items.length) container.appendChild(placeholder);
+  else container.insertBefore(placeholder, items[idx]);
+  return idx;
+}
+
+/**
+ * Validate a pointer event as a valid drag start.
+ * @param {MouseEvent | TouchEvent} e
+ * @param {HTMLElement} container
+ * @param {Opts} opts
+ * @returns {HTMLElement | null} the target item, or null if invalid
+ */
+function validateDragTarget(e, container, opts) {
+  const target = /** @type {HTMLElement} */ (e.target);
+  const item = /** @type {HTMLElement | null} */ (target.closest(opts.items));
+  if (!item || !container.contains(item)) return null;
+  if (opts.disabled?.(item)) return null;
+  if (opts.handle && item.querySelector(opts.handle)) {
+    const handle = target.closest(opts.handle);
+    if (!handle || !item.contains(handle)) return null;
+  }
+  if ("button" in e && e.button !== 0) return null;
+  return item;
 }
 
 /**
@@ -297,54 +329,66 @@ function createSession(inst, el, initialPos) {
   /** @type {Set<HTMLElement>} */
   const animating = new Set();
 
-  let items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
-  let startIndex = items.indexOf(el);
-  const originalIndex = startIndex;
-  let currentIndex = startIndex;
-  let lastReorderTime = 0;
-  let pointer = initialPos;
-  let activeInst = inst;
-  let dropping = false;
-  let indexDirty = false;
+  const startItems = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
+  const originalIndex = startItems.indexOf(el);
 
+  /** @type {{items: HTMLElement[], startIndex: number, currentIndex: number, lastReorderTime: number, pointer: Point, activeInst: SortableInstance, dropping: boolean, indexDirty: boolean}} */
+  const drag = {
+    items: startItems,
+    startIndex: originalIndex,
+    currentIndex: originalIndex,
+    lastReorderTime: 0,
+    pointer: initialPos,
+    activeInst: inst,
+    dropping: false,
+    indexDirty: false,
+  };
+
+  // Lift element and activate drag state
   /** @type {Node} */ (el.parentNode).insertBefore(placeholder, el);
-  liftElement(el, box, inst.el);
+  liftElement(el, box);
+  el.setAttribute("data-dragging", "");
+  inst.el.classList.add("sortable-active");
+  document.body.style.userSelect = "none";
+  /** @type {any} */ (document.body.style).webkitUserSelect = "none";
+  document.body.style.cursor = "grabbing";
 
-  const scroller = createAutoScroller(
-    findScrollParent(inst.el),
-    buildScrollTarget(findScrollParent(inst.el)),
-    opts.scrollThreshold,
-    () => pointer,
-    () => !dropping,
-    updateIndex,
-  );
+  const scrollEl = findScrollParent(inst.el);
+  const scroller = createAutoScroller({
+    scrollEl,
+    target: buildScrollTarget(scrollEl),
+    threshold: opts.scrollThreshold,
+    getPointer: () => drag.pointer,
+    isActive: () => !drag.dropping,
+    onTick: updateIndex,
+  });
 
   /** @param {Point} pos */
   function move(pos) {
-    if (dropping) return;
-    pointer = pos;
+    if (drag.dropping) return;
+    drag.pointer = pos;
     el.style.transform = `translate3d(${pos.x - initialPos.x}px, ${pos.y - initialPos.y}px, 0)`;
     scroller.start();
-    if (!indexDirty) {
-      indexDirty = true;
-      requestAnimationFrame(() => { indexDirty = false; updateIndex(); });
+    if (!drag.indexDirty) {
+      drag.indexDirty = true;
+      requestAnimationFrame(() => { drag.indexDirty = false; updateIndex(); });
     }
   }
 
   function updateIndex() {
-    if (dropping) return;
-    if (Date.now() - lastReorderTime < REORDER_COOLDOWN_MS) return;
+    if (drag.dropping) return;
+    if (Date.now() - drag.lastReorderTime < REORDER_COOLDOWN_MS) return;
 
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
 
-    for (const child of items) {
+    for (const child of drag.items) {
       if (child === el || animating.has(child)) continue;
       if (hitTest(cx, cy, child)) {
-        const idx = items.indexOf(child);
-        if (idx !== currentIndex) {
-          currentIndex = idx;
+        const idx = drag.items.indexOf(child);
+        if (idx !== drag.currentIndex) {
+          drag.currentIndex = idx;
           reposition();
         }
         return;
@@ -354,31 +398,31 @@ function createSession(inst, el, initialPos) {
   }
 
   function reposition() {
-    const newOrder = arrMove([...items], startIndex, currentIndex);
-    const siblings = items.filter(c => c !== el);
+    const newOrder = arrMove([...drag.items], drag.startIndex, drag.currentIndex);
+    const siblings = drag.items.filter(c => c !== el);
     const before = captureRects(siblings);
     const dragIdx = newOrder.indexOf(el);
     const ref = newOrder.slice(dragIdx + 1).find(c => c !== el) ?? null;
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
-    items = newOrder;
+    drag.items = newOrder;
     flip(siblings, before, animating);
-    lastReorderTime = Date.now();
+    drag.lastReorderTime = Date.now();
   }
 
   /** @param {number} cx @param {number} cy */
   function checkTransfer(cx, cy) {
-    if (hitTest(cx, cy, activeInst.el)) return;
+    if (hitTest(cx, cy, drag.activeInst.el)) return;
     const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (opts.group)));
     for (const other of group) {
-      if (other === activeInst) continue;
+      if (other === drag.activeInst) continue;
       if (hitTest(cx, cy, other.el)) { transfer(other, cy); return; }
     }
   }
 
   /** @param {SortableInstance} target @param {number} cy */
   function transfer(target, cy) {
-    const oldInst = activeInst;
-    const siblings = items.filter(c => c !== el);
+    const oldInst = drag.activeInst;
+    const siblings = drag.items.filter(c => c !== el);
     const targetItems = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
       .filter(c => c !== el);
 
@@ -390,18 +434,14 @@ function createSession(inst, el, initialPos) {
     placeholder.remove();
     oldInst.el.classList.remove("sortable-active");
 
-    const found = targetItems.findIndex(c => { const r = c.getBoundingClientRect(); return cy < r.top + r.height / 2; });
-    const insertIdx = found === -1 ? targetItems.length : found;
-
-    if (insertIdx >= targetItems.length) target.el.appendChild(placeholder);
-    else target.el.insertBefore(placeholder, targetItems[insertIdx]);
+    const insertIdx = insertPlaceholderAt(placeholder, target.el, targetItems, cy);
     target.el.classList.add("sortable-active");
 
-    items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== el);
-    items.splice(insertIdx, 0, el);
-    startIndex = insertIdx;
-    currentIndex = insertIdx;
-    activeInst = target;
+    drag.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== el);
+    drag.items.splice(insertIdx, 0, el);
+    drag.startIndex = insertIdx;
+    drag.currentIndex = insertIdx;
+    drag.activeInst = target;
 
     flip(siblings, oldRects, animating);
     flip(targetItems, targetRects, animating);
@@ -410,7 +450,7 @@ function createSession(inst, el, initialPos) {
   }
 
   function drop() {
-    dropping = true;
+    drag.dropping = true;
     const target = placeholder.getBoundingClientRect();
     el.style.transition = "";
     el.removeAttribute("data-dragging");
@@ -422,15 +462,15 @@ function createSession(inst, el, initialPos) {
       if (done) return;
       done = true;
 
-      settle(items, placeholder, inst, activeInst);
+      settle(drag.items, placeholder, inst, drag.activeInst);
 
-      const crossContainer = activeInst !== inst;
-      const from = crossContainer ? originalIndex : startIndex;
-      const to = currentIndex;
+      const crossContainer = drag.activeInst !== inst;
+      const from = crossContainer ? originalIndex : drag.startIndex;
+      const to = drag.currentIndex;
 
       if (crossContainer && opts.onTransfer) {
         requestAnimationFrame(() => /** @type {Function} */ (opts.onTransfer)({
-          from, to, el, sourceContainer: inst, targetContainer: activeInst,
+          from, to, el, sourceContainer: inst, targetContainer: drag.activeInst,
         }));
       } else if (!crossContainer && from !== to && opts.onReorder) {
         requestAnimationFrame(() => /** @type {Function} */ (opts.onReorder)({ from, to }));
@@ -450,6 +490,9 @@ function createSession(inst, el, initialPos) {
  * @returns {SortableInstance}
  */
 export function sortable(container, userOpts = {}) {
+  if (initialized.has(container)) throw new Error("sortable() already called on this element");
+  initialized.add(container);
+
   /** @type {Opts} */
   const opts = { ...DEFAULTS, ...userOpts };
   /** @type {Record<string, any>} */
@@ -470,6 +513,7 @@ export function sortable(container, userOpts = {}) {
     meta,
     destroy() {
       ac.abort();
+      initialized.delete(container);
       if (opts.group) groups.get(opts.group)?.delete(inst);
     },
   };
@@ -482,19 +526,12 @@ export function sortable(container, userOpts = {}) {
   /** @param {MouseEvent | TouchEvent} e */
   function onPointerDown(e) {
     if (session) return;
-
-    const target = /** @type {HTMLElement} */ (e.target);
-    const item = /** @type {HTMLElement | null} */ (target.closest(opts.items));
-    if (!item || !container.contains(item)) return;
-    if (opts.disabled?.(item)) return;
-    if (opts.handle && item.querySelector(opts.handle)) {
-      const handle = target.closest(opts.handle);
-      if (!handle || !item.contains(handle)) return;
-    }
-    if ("button" in e && e.button !== 0) return;
+    const item = validateDragTarget(e, container, opts);
+    if (!item) return;
 
     if (e.type === "touchstart") {
       e.preventDefault();
+      const target = /** @type {HTMLElement} */ (e.target);
       setTimeout(() => {
         if (!session) target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
       }, opts.touchClickDelay);
