@@ -31,12 +31,11 @@ Uses a placeholder element + FLIP animation to support arbitrary sortable elemen
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `items` | string | `"[data-sortable]"` | CSS selector for sortable items within the container |
-| `handle` | string \| null | `null` | CSS selector for handle elements. Items with `data-needs-handle` can only be dragged from matching elements |
-| `disabled` | function \| null | `null` | Called with each item element. Return `true` to prevent dragging and swapping into that item |
+| `handle` | string \| null | `null` | CSS selector for handle elements. Items containing a matching handle child can only be dragged from that element |
+| `disabled` | function \| null | `(el) => el.hasAttribute("data-drag-disabled")` | Called with each item element. Return `true` to prevent dragging |
 | `onReorder` | function \| null | `null` | Called with `{ from, to }` after a same-container drop (deferred by one frame) |
 | `onTransfer` | function \| null | `null` | Called with `{ from, to, el, sourceContainer, targetContainer }` after a cross-container drop |
 | `group` | string \| null | `null` | Group name. Containers with the same group allow dragging items between them |
-| `transitionMs` | number | `150` | Duration of the FLIP animation in ms |
 | `dragThreshold` | number | `5` | Pixels of movement before a drag activates |
 | `touchClickDelay` | number | `100` | Ms to wait before firing synthetic click on touch (distinguishes taps from drags) |
 | `scrollThreshold` | number | `150` | Distance from edge (px) that triggers auto-scroll |
@@ -125,8 +124,6 @@ The library applies attributes and classes during drag but injects no CSS. Add y
   cursor: grabbing;
 }
 ```
-
-The `transition` duration should match the `transitionMs` option (default 150ms) so cleanup timeouts stay in sync with the animation.
 
 The dragged item gets `position: fixed` with inline styles during drag. The placeholder copies computed grid/flex layout properties from the source element so multi-span items preserve the layout. All inline styles are cleaned up on drop.
 

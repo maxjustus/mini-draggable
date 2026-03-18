@@ -46,7 +46,6 @@
  *   onReorder?: ((event: ReorderEvent) => void) | null,
  *   onTransfer?: ((event: TransferEvent) => void) | null,
  *   group?: string | null,
- *   transitionMs?: number,
  *   dragThreshold?: number,
  *   touchClickDelay?: number,
  *   scrollThreshold?: number,
@@ -63,7 +62,6 @@ const DEFAULTS = {
   onReorder: null,
   onTransfer: null,
   group: null,
-  transitionMs: 150,
   dragThreshold: 5,
   touchClickDelay: 100,
   scrollThreshold: 150,
@@ -72,6 +70,13 @@ const DEFAULTS = {
 /** @type {readonly string[]} */
 const STYLE_PROPS = ["transform", "transition", "position", "zIndex", "top", "left", "width", "height"];
 const REORDER_COOLDOWN_MS = 50;
+const SETTLE_BUFFER_MS = 50;
+
+/** @param {HTMLElement} el @returns {number} */
+function cssTransitionMs(el) {
+  const raw = getComputedStyle(el).transitionDuration;
+  return raw ? parseFloat(raw) * 1000 : 0;
+}
 
 /** @type {Map<string, Set<Sortable>>} */
 const groups = new Map();
@@ -546,7 +551,6 @@ export class Sortable {
    * @param {Map<HTMLElement, DOMRect>} firstRects
    */
   flipAnimate(items, firstRects) {
-    const ms = this.opts.transitionMs;
     for (const child of items) {
       const first = firstRects.get(child);
       if (!first) continue;
@@ -563,7 +567,9 @@ export class Sortable {
       child.style.transform = "none";
 
       this.animating.add(child);
-      setTimeout(() => this.animating.delete(child), ms);
+      const done = () => this.animating.delete(child);
+      child.addEventListener("transitionend", done, { once: true });
+      setTimeout(done, cssTransitionMs(child) + SETTLE_BUFFER_MS);
     }
   }
 
@@ -586,7 +592,7 @@ export class Sortable {
       container.style.transition = "";
     };
     container.addEventListener("transitionend", cleanup, { once: true });
-    setTimeout(cleanup, this.opts.transitionMs + 50);
+    setTimeout(cleanup, cssTransitionMs(container) + SETTLE_BUFFER_MS);
   }
 
   onPointerUp() {
@@ -604,8 +610,9 @@ export class Sortable {
     const target = /** @type {HTMLElement} */ (this.placeholder).getBoundingClientRect();
     const box = /** @type {DOMRect} */ (this.draggingBox);
     el.style.transition = "";
-    el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
     el.removeAttribute("data-dragging");
+    el.getClientRects(); // reflow — lock in current transform with CSS transition active
+    el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
 
     let settled = false;
     const settle = () => {
@@ -615,7 +622,7 @@ export class Sortable {
     };
 
     el.addEventListener("transitionend", settle, { once: true });
-    setTimeout(settle, this.opts.transitionMs + 50);
+    setTimeout(settle, cssTransitionMs(el) + SETTLE_BUFFER_MS);
   }
 
   settle() {
