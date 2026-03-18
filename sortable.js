@@ -55,7 +55,6 @@ const SETTLE_BUFFER_MS = 50;
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
 
-
 /** @param {MouseEvent | TouchEvent} e @returns {Point} */
 function pointerPos(e) {
   if ("touches" in e) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -106,7 +105,7 @@ function findScrollParent(el) {
 }
 
 /** @param {HTMLElement | null} el @returns {ScrollTarget} */
-function scrollTarget(el) {
+function buildScrollTarget(el) {
   if (el) return {
     scrollBy(x, y) { el.scrollTop += y; el.scrollLeft += x; },
     get scrollX() { return el.scrollLeft; },
@@ -192,6 +191,99 @@ function repaint(container, selector) {
   requestAnimationFrame(() => { for (const c of items) c.style.willChange = ""; });
 }
 
+/** @param {HTMLElement} el @param {DOMRect} box @param {HTMLElement} container */
+function liftElement(el, box, container) {
+  Object.assign(el.style, {
+    position: "fixed", zIndex: "10000",
+    top: `${box.top}px`, left: `${box.left}px`,
+    width: `${box.width}px`, height: `${box.height}px`,
+    transition: "none", transform: "translate3d(0, 0, 0)",
+  });
+  el.setAttribute("data-dragging", "");
+  container.classList.add("sortable-active");
+  document.body.style.userSelect = "none";
+  /** @type {any} */ (document.body.style).webkitUserSelect = "none";
+  document.body.style.cursor = "grabbing";
+}
+
+/**
+ * @param {HTMLElement[]} items
+ * @param {HTMLElement} placeholder
+ * @param {SortableInstance} inst
+ * @param {SortableInstance} activeInst
+ */
+function settle(items, placeholder, inst, activeInst) {
+  placeholder.remove();
+  for (const child of items) {
+    for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
+    child.removeAttribute("data-dragging");
+  }
+  activeInst.el.classList.remove("sortable-active");
+  inst.el.classList.remove("sortable-active");
+  document.body.style.userSelect = "";
+  /** @type {any} */ (document.body.style).webkitUserSelect = "";
+  document.body.style.cursor = "";
+  repaint(inst.el, inst.opts.items);
+  if (activeInst !== inst) repaint(activeInst.el, inst.opts.items);
+}
+
+/**
+ * @param {HTMLElement | null} scrollEl
+ * @param {ScrollTarget} st
+ * @param {number} threshold
+ * @param {{(): Point}} getPointer
+ * @param {{(): boolean}} isActive
+ * @param {{(): void}} onTick
+ * @returns {{start: () => void}}
+ */
+function createAutoScroller(scrollEl, st, threshold, getPointer, isActive, onTick) {
+  let scrolling = false;
+
+  /** @param {Point} pointer @returns {{top: number, right: number, bottom: number, left: number}} */
+  function edgeDist(pointer) {
+    if (scrollEl) {
+      const r = scrollEl.getBoundingClientRect();
+      return { top: pointer.y - r.top, right: r.right - pointer.x, bottom: r.bottom - pointer.y, left: pointer.x - r.left };
+    }
+    return { top: pointer.y, right: innerWidth - pointer.x, bottom: innerHeight - pointer.y, left: pointer.x };
+  }
+
+  /** @returns {{x: number, y: number}} */
+  function thresh() {
+    if (scrollEl) {
+      const r = scrollEl.getBoundingClientRect();
+      return { x: Math.min(r.width * 0.25, threshold), y: Math.min(r.height * 0.25, threshold) };
+    }
+    return { x: threshold, y: threshold };
+  }
+
+  function loop() {
+    if (!isActive() || !scrolling) { scrolling = false; return; }
+    requestAnimationFrame(loop);
+    const d = edgeDist(getPointer());
+    const t = thresh();
+    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -(2 ** ((t.y - d.top) / 28)));
+    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(2 ** ((t.x - d.right) / 28), 0);
+    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, 2 ** ((t.y - d.bottom) / 28));
+    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-(2 ** ((t.x - d.left) / 28)), 0);
+    onTick();
+  }
+
+  return {
+    start() {
+      if (scrolling) return;
+      const d = edgeDist(getPointer());
+      const t = thresh();
+      if ((d.top < t.y && st.scrollY > 0) ||
+          (d.right < t.x && st.scrollX + st.width < st.scrollWidth) ||
+          (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) ||
+          (d.left < t.x && st.scrollX > 0)) {
+        scrolling = true;
+        requestAnimationFrame(loop);
+      }
+    },
+  };
+}
 
 /**
  * @param {SortableInstance} inst
@@ -201,45 +293,38 @@ function repaint(container, selector) {
 function createSession(inst, el, initialPos) {
   const { opts } = inst;
   const box = el.getBoundingClientRect();
-  const scrollEl = findScrollParent(inst.el);
-  const st = scrollTarget(scrollEl);
   const placeholder = createPlaceholder(el);
   /** @type {Set<HTMLElement>} */
   const animating = new Set();
 
   let items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
-
   let startIndex = items.indexOf(el);
   const originalIndex = startIndex;
   let currentIndex = startIndex;
   let lastReorderTime = 0;
   let pointer = initialPos;
-  let scrolling = false;
   let activeInst = inst;
   let dropping = false;
   let indexDirty = false;
 
-  // Lift element into fixed position
   /** @type {Node} */ (el.parentNode).insertBefore(placeholder, el);
-  Object.assign(el.style, {
-    position: "fixed", zIndex: "10000",
-    top: `${box.top}px`, left: `${box.left}px`,
-    width: `${box.width}px`, height: `${box.height}px`,
-    transition: "none", transform: "translate3d(0, 0, 0)",
-  });
-  el.setAttribute("data-dragging", "");
-  inst.el.classList.add("sortable-active");
-  document.body.style.userSelect = "none";
-  /** @type {any} */ (document.body.style).webkitUserSelect = "none";
-  document.body.style.cursor = "grabbing";
+  liftElement(el, box, inst.el);
 
+  const scroller = createAutoScroller(
+    findScrollParent(inst.el),
+    buildScrollTarget(findScrollParent(inst.el)),
+    opts.scrollThreshold,
+    () => pointer,
+    () => !dropping,
+    updateIndex,
+  );
 
   /** @param {Point} pos */
   function move(pos) {
     if (dropping) return;
     pointer = pos;
     el.style.transform = `translate3d(${pos.x - initialPos.x}px, ${pos.y - initialPos.y}px, 0)`;
-    startAutoScroll();
+    scroller.start();
     if (!indexDirty) {
       indexDirty = true;
       requestAnimationFrame(() => { indexDirty = false; updateIndex(); });
@@ -272,22 +357,15 @@ function createSession(inst, el, initialPos) {
     const newOrder = arrMove([...items], startIndex, currentIndex);
     const siblings = items.filter(c => c !== el);
     const before = captureRects(siblings);
-
-    // Move placeholder
     const dragIdx = newOrder.indexOf(el);
     const ref = newOrder.slice(dragIdx + 1).find(c => c !== el) ?? null;
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
-
     items = newOrder;
     flip(siblings, before, animating);
     lastReorderTime = Date.now();
   }
 
-
-  /**
-   * @param {number} cx
-   * @param {number} cy
-   */
+  /** @param {number} cx @param {number} cy */
   function checkTransfer(cx, cy) {
     if (hitTest(cx, cy, activeInst.el)) return;
     const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (opts.group)));
@@ -297,10 +375,7 @@ function createSession(inst, el, initialPos) {
     }
   }
 
-  /**
-   * @param {SortableInstance} target
-   * @param {number} cy
-   */
+  /** @param {SortableInstance} target @param {number} cy */
   function transfer(target, cy) {
     const oldInst = activeInst;
     const siblings = items.filter(c => c !== el);
@@ -322,9 +397,7 @@ function createSession(inst, el, initialPos) {
     else target.el.insertBefore(placeholder, targetItems[insertIdx]);
     target.el.classList.add("sortable-active");
 
-    // Rebuild tracking
-    items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
-      .filter(c => c !== el);
+    items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== el);
     items.splice(insertIdx, 0, el);
     startIndex = insertIdx;
     currentIndex = insertIdx;
@@ -336,85 +409,24 @@ function createSession(inst, el, initialPos) {
     flipHeight(target.el, targetHeight);
   }
 
-
-  function startAutoScroll() {
-    if (scrolling) return;
-    const d = edgeDist();
-    const t = scrollThresh();
-    if ((d.top < t.y && st.scrollY > 0) ||
-        (d.right < t.x && st.scrollX + st.width < st.scrollWidth) ||
-        (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) ||
-        (d.left < t.x && st.scrollX > 0)) {
-      scrolling = true;
-      requestAnimationFrame(scrollLoop);
-    }
-  }
-
-  function scrollLoop() {
-    if (dropping || !scrolling) { scrolling = false; return; }
-    requestAnimationFrame(scrollLoop);
-    const d = edgeDist();
-    const t = scrollThresh();
-    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -(2 ** ((t.y - d.top) / 28)));
-    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(2 ** ((t.x - d.right) / 28), 0);
-    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, 2 ** ((t.y - d.bottom) / 28));
-    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-(2 ** ((t.x - d.left) / 28)), 0);
-    updateIndex();
-  }
-
-  /** @returns {{top: number, right: number, bottom: number, left: number}} */
-  function edgeDist() {
-    if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { top: pointer.y - r.top, right: r.right - pointer.x, bottom: r.bottom - pointer.y, left: pointer.x - r.left };
-    }
-    return { top: pointer.y, right: innerWidth - pointer.x, bottom: innerHeight - pointer.y, left: pointer.x };
-  }
-
-  /** @returns {{x: number, y: number}} */
-  function scrollThresh() {
-    const max = opts.scrollThreshold;
-    if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { x: Math.min(r.width * 0.25, max), y: Math.min(r.height * 0.25, max) };
-    }
-    return { x: max, y: max };
-  }
-
-
   function drop() {
     dropping = true;
-    scrolling = false;
-
     const target = placeholder.getBoundingClientRect();
     el.style.transition = "";
     el.removeAttribute("data-dragging");
     el.getClientRects();
     el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
 
-    let settled = false;
-    const settle = () => {
-      if (settled) return;
-      settled = true;
+    let done = false;
+    const onSettle = () => {
+      if (done) return;
+      done = true;
+
+      settle(items, placeholder, inst, activeInst);
 
       const crossContainer = activeInst !== inst;
       const from = crossContainer ? originalIndex : startIndex;
       const to = currentIndex;
-
-      placeholder.remove();
-      for (const child of items) {
-        for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
-        child.removeAttribute("data-dragging");
-      }
-
-      activeInst.el.classList.remove("sortable-active");
-      inst.el.classList.remove("sortable-active");
-      document.body.style.userSelect = "";
-      /** @type {any} */ (document.body.style).webkitUserSelect = "";
-      document.body.style.cursor = "";
-
-      repaint(inst.el, opts.items);
-      if (crossContainer) repaint(activeInst.el, opts.items);
 
       if (crossContainer && opts.onTransfer) {
         requestAnimationFrame(() => /** @type {Function} */ (opts.onTransfer)({
@@ -425,13 +437,12 @@ function createSession(inst, el, initialPos) {
       }
     };
 
-    el.addEventListener("transitionend", settle, { once: true });
-    setTimeout(settle, cssTransitionMs(el) + SETTLE_BUFFER_MS);
+    el.addEventListener("transitionend", onSettle, { once: true });
+    setTimeout(onSettle, cssTransitionMs(el) + SETTLE_BUFFER_MS);
   }
 
   return { move, drop };
 }
-
 
 /**
  * @param {HTMLElement} container
@@ -516,7 +527,6 @@ export function sortable(container, userOpts = {}) {
 
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
-    // Also abort per-drag listeners when the sortable instance is destroyed
     sig.addEventListener("abort", () => dragAc.abort());
     window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
     window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
@@ -532,4 +542,3 @@ export function sortable(container, userOpts = {}) {
 
   return inst;
 }
-
