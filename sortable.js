@@ -210,19 +210,16 @@ function createSession(inst, el, initialPos) {
   const animating = new Set();
 
   let items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
-  /** @type {Map<HTMLElement, number>} */
-  const indices = new Map();
-  items.forEach((c, i) => indices.set(c, i));
 
   let startIndex = items.indexOf(el);
+  const originalIndex = startIndex;
   let currentIndex = startIndex;
   let lastReorderTime = 0;
   let pointer = initialPos;
   let scrolling = false;
-  let sourceInst = inst;
-  let sourceIndex = startIndex;
   let activeInst = inst;
   let dropping = false;
+  let indexDirty = false;
 
   // Lift element into fixed position
   /** @type {Node} */ (el.parentNode).insertBefore(placeholder, el);
@@ -246,7 +243,10 @@ function createSession(inst, el, initialPos) {
     pointer = pos;
     el.style.transform = `translate3d(${pos.x - initialPos.x}px, ${pos.y - initialPos.y}px, 0)`;
     startAutoScroll();
-    requestAnimationFrame(updateIndex);
+    if (!indexDirty) {
+      indexDirty = true;
+      requestAnimationFrame(() => { indexDirty = false; updateIndex(); });
+    }
   }
 
   function updateIndex() {
@@ -260,7 +260,7 @@ function createSession(inst, el, initialPos) {
     for (const child of items) {
       if (child === el || animating.has(child)) continue;
       if (hitTest(cx, cy, child)) {
-        const idx = /** @type {number} */ (indices.get(child));
+        const idx = items.indexOf(child);
         if (idx !== currentIndex) {
           currentIndex = idx;
           reposition();
@@ -285,7 +285,7 @@ function createSession(inst, el, initialPos) {
     }
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
 
-    newOrder.forEach((c, i) => indices.set(c, i));
+    items = newOrder;
     flip(siblings, before, animating);
     lastReorderTime = Date.now();
   }
@@ -338,8 +338,6 @@ function createSession(inst, el, initialPos) {
     items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
       .filter(c => c !== el);
     items.splice(insertIdx, 0, el);
-    indices.clear();
-    items.forEach((c, i) => indices.set(c, i));
     startIndex = insertIdx;
     currentIndex = insertIdx;
     activeInst = target;
@@ -413,8 +411,8 @@ function createSession(inst, el, initialPos) {
       if (settled) return;
       settled = true;
 
-      const crossContainer = activeInst !== sourceInst;
-      const from = crossContainer ? sourceIndex : startIndex;
+      const crossContainer = activeInst !== inst;
+      const from = crossContainer ? originalIndex : startIndex;
       const to = currentIndex;
 
       placeholder.remove();
@@ -434,7 +432,7 @@ function createSession(inst, el, initialPos) {
 
       if (crossContainer && opts.onTransfer) {
         requestAnimationFrame(() => /** @type {Function} */ (opts.onTransfer)({
-          from, to, el, sourceContainer: sourceInst, targetContainer: activeInst,
+          from, to, el, sourceContainer: inst, targetContainer: activeInst,
         }));
       } else if (!crossContainer && from !== to && opts.onReorder) {
         requestAnimationFrame(() => /** @type {Function} */ (opts.onReorder)({ from, to }));
@@ -523,10 +521,7 @@ export function sortable(container, userOpts = {}) {
     }
 
     function onUp() {
-      window.removeEventListener("mousemove", /** @type {EventListener} */ (onMove));
-      window.removeEventListener("touchmove", /** @type {EventListener} */ (onMove));
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchend", onUp);
+      dragAc.abort();
       if (session) {
         session.drop();
         session = null;
@@ -534,10 +529,15 @@ export function sortable(container, userOpts = {}) {
       pending = false;
     }
 
-    window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false });
-    window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false });
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("touchend", onUp);
+    const dragAc = new AbortController();
+    const dragSig = dragAc.signal;
+    // Also abort per-drag listeners when the sortable instance is destroyed
+    sig.addEventListener("abort", () => dragAc.abort());
+    window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
+    window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
+    window.addEventListener("mouseup", onUp, { signal: dragSig });
+    window.addEventListener("touchend", onUp, { signal: dragSig });
+    window.addEventListener("touchcancel", onUp, { signal: dragSig });
   }
 
   on(container, "mousedown", /** @type {EventListener} */ (onPointerDown));
