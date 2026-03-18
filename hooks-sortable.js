@@ -1,4 +1,4 @@
-// Framework-agnostic hook factory for the vanilla Sortable library.
+// Framework-agnostic hook factory for the vanilla sortable library.
 // Works with React, Preact, or any library with compatible useEffect/useRef hooks.
 //
 // Usage:
@@ -11,7 +11,7 @@
 //
 //   const useSortable = createUseSortable({ useEffect, useRef });
 
-import { Sortable, arrMove } from './sortable.js';
+import { sortable, arrMove } from './sortable.js';
 export { arrMove };
 
 /**
@@ -25,7 +25,7 @@ export { arrMove };
  *   group?: string | null,
  *   disabled?: ((el: HTMLElement) => boolean) | null,
  *   onReorder?: ((event: {from: number, to: number}) => void) | null,
- *   onTransfer?: ((event: {from: number, to: number, sourceContainer: Sortable, targetContainer: Sortable}) => void) | null,
+ *   onTransfer?: ((event: {from: number, to: number, sourceContainer: import('./sortable.js').SortableInstance, targetContainer: import('./sortable.js').SortableInstance}) => void) | null,
  *   spliceOut?: ((i: number) => any) | null,
  *   spliceIn?: ((i: number, item: any) => void) | null,
  * }} UseSortableOptions
@@ -43,15 +43,15 @@ export function createUseSortable({ useEffect, useRef }) {
   return function useSortable(opts = {}) {
     const ref = useRef(null);
     const optsRef = useRef(opts);
-    optsRef.current = opts; // always-current proxy — avoids stale closures without re-running the effect
+    optsRef.current = opts;
 
     useEffect(() => {
       if (!ref.current) return;
-      const s = new Sortable(ref.current, {
+      const s = sortable(ref.current, {
         handle:   optsRef.current.handle   ? "[data-sortable-handle]" : null,
         group:    optsRef.current.group    ?? null,
-        onReorder: (e) => optsRef.current.onReorder?.(e),
-        onTransfer: (e) => {
+        onReorder: (/** @type {{from: number, to: number}} */ e) => optsRef.current.onReorder?.(e),
+        onTransfer: (/** @type {any} */ e) => {
           const item = e.sourceContainer.meta.spliceOut?.(e.from);
           if (item !== undefined) e.targetContainer.meta.spliceIn?.(e.to, item);
           optsRef.current.onTransfer?.(e);
@@ -60,7 +60,7 @@ export function createUseSortable({ useEffect, useRef }) {
       s.meta.spliceOut = (/** @type {number} */ i)                    => optsRef.current.spliceOut?.(i);
       s.meta.spliceIn  = (/** @type {number} */ i, /** @type {any} */ item) => optsRef.current.spliceIn?.(i, item);
       return () => s.destroy();
-    }, []); // intentional empty deps — Sortable is stateful, instantiate once per mount
+    }, []);
 
     return ref;
   };

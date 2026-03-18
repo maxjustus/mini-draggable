@@ -7,7 +7,7 @@
 //   x-sortable.board="items"    -- grouped containers for cross-list transfer
 //   x-sortable                  -- event-only, handle @reorder yourself
 
-import { Sortable, arrMove } from "./sortable.js";
+import { sortable, arrMove } from "./sortable.js";
 
 /** @param {any} Alpine */
 export default function AlpineSortable(Alpine) {
@@ -33,7 +33,7 @@ export default function AlpineSortable(Alpine) {
       evaluate(expression).splice(i, 0, item);
     };
 
-    const d = new Sortable(el, {
+    const d = sortable(el, {
       handle: "[data-sortable-handle]",
       group,
       onReorder(/** @type {{from: number, to: number}} */ { from, to }) {
@@ -45,7 +45,7 @@ export default function AlpineSortable(Alpine) {
           bubbles: true,
         }));
       },
-      onTransfer(/** @type {{from: number, to: number, sourceContainer: Sortable, targetContainer: Sortable}} */ { from, to, sourceContainer, targetContainer }) {
+      onTransfer(/** @type {{from: number, to: number, sourceContainer: import('./sortable.js').SortableInstance, targetContainer: import('./sortable.js').SortableInstance}} */ { from, to, sourceContainer, targetContainer }) {
         const item = sourceContainer.meta.spliceOut?.(from);
         if (item !== undefined) targetContainer.meta.spliceIn?.(to, item);
         el.dispatchEvent(new CustomEvent("transfer", {
