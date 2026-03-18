@@ -76,7 +76,6 @@ const REORDER_COOLDOWN_MS = 50;
 /** @type {Map<string, Set<Sortable>>} */
 const groups = new Map();
 
-// --- Utilities ---
 
 /** @param {MouseEvent | TouchEvent} e @returns {Point} */
 function pointerPos(e) {
@@ -172,7 +171,6 @@ function buildScrollTarget(scrollEl) {
   };
 }
 
-// --- Sortable class ---
 
 export class Sortable {
   /**
@@ -185,7 +183,6 @@ export class Sortable {
     this.opts = { ...DEFAULTS, ...opts };
     /** @type {Record<string, any>} */
     this.meta = {};
-    this.transitionCSS = `transform ${this.opts.transitionMs}ms`;
 
     /** @type {"idle" | "pending" | "dragging" | "dropping"} */
     this.state = "idle";
@@ -254,8 +251,6 @@ export class Sortable {
     if (this.opts.group) groups.get(this.opts.group)?.delete(this);
   }
 
-  // --- Pointer down ---
-
   /** @param {MouseEvent | TouchEvent} e */
   onPointerDown(e) {
     if (this.state !== "idle") return;
@@ -284,7 +279,6 @@ export class Sortable {
     this.initialPointer = pointerPos(e);
   }
 
-  // --- Pointer move ---
 
   /** @param {MouseEvent | TouchEvent} e */
   onPointerMove(e) {
@@ -310,8 +304,6 @@ export class Sortable {
     }
   }
 
-  // --- Start drag ---
-
   startDrag() {
     this.state = "dragging";
     const el = /** @type {HTMLElement} */ (this.draggingEl);
@@ -323,9 +315,7 @@ export class Sortable {
     this.initScroll();
     this.insertPlaceholder();
     this.liftDraggingElement();
-    el.getClientRects(); // reflow at lifted position with base styles
-    el.style.transition = ""; // clear inline override, let CSS transitions work
-    el.setAttribute("data-dragging", ""); // CSS transition now animates border/shadow
+    el.setAttribute("data-dragging", "");
     this.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
     /** @type {any} */ (document.body.style).webkitUserSelect = "none";
@@ -360,7 +350,6 @@ export class Sortable {
     });
   }
 
-  // --- Auto-scroll ---
 
   startAutoScroll() {
     if (!this.scrollTarget || this.scrolling) return;
@@ -424,8 +413,6 @@ export class Sortable {
     };
   }
 
-  // --- Index tracking ---
-
   updateCurrentIndex() {
     if (!this.draggingEl || this.state !== "dragging") return;
     if (Date.now() - this.lastReorderTime < REORDER_COOLDOWN_MS) return;
@@ -451,7 +438,6 @@ export class Sortable {
     if (this.opts.group) this.checkContainerTransfer(cx, cy);
   }
 
-  // --- Cross-container transfer ---
 
   /**
    * @param {number} cx
@@ -532,8 +518,6 @@ export class Sortable {
     return items.length;
   }
 
-  // --- Sibling repositioning via placeholder + FLIP ---
-
   repositionSiblings() {
     const dragging = /** @type {HTMLElement} */ (this.draggingEl);
     const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
@@ -570,16 +554,12 @@ export class Sortable {
       const dx = first.left - last.left;
       const dy = first.top - last.top;
 
-      if (dx === 0 && dy === 0) {
-        child.style.transition = "none";
-        child.style.transform = "";
-        continue;
-      }
+      if (dx === 0 && dy === 0) continue;
 
       child.style.transition = "none";
       child.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
       child.getClientRects();
-      child.style.transition = this.transitionCSS;
+      child.style.transition = "";
       child.style.transform = "none";
 
       this.animating.add(child);
@@ -598,7 +578,7 @@ export class Sortable {
     container.style.height = `${firstHeight}px`;
     container.style.transition = "none";
     container.getClientRects();
-    container.style.transition = `height ${this.opts.transitionMs}ms`;
+    container.style.transition = "";
     container.style.height = `${lastHeight}px`;
 
     const cleanup = () => {
@@ -608,8 +588,6 @@ export class Sortable {
     container.addEventListener("transitionend", cleanup, { once: true });
     setTimeout(cleanup, this.opts.transitionMs + 50);
   }
-
-  // --- Drop ---
 
   onPointerUp() {
     if (this.state === "pending") {
@@ -625,12 +603,7 @@ export class Sortable {
     const el = /** @type {HTMLElement} */ (this.draggingEl);
     const target = /** @type {HTMLElement} */ (this.placeholder).getBoundingClientRect();
     const box = /** @type {DOMRect} */ (this.draggingBox);
-    // Merge CSS-defined transitions (e.g. border, box-shadow) with the
-    // transform animation so visual styles can fade out alongside the slide.
-    const cssTransition = getComputedStyle(el).transition;
-    el.style.transition = cssTransition && !cssTransition.startsWith("all 0s")
-      ? `${this.transitionCSS}, ${cssTransition}`
-      : this.transitionCSS;
+    el.style.transition = "";
     el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
     el.removeAttribute("data-dragging");
 

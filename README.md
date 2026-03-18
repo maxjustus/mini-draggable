@@ -100,9 +100,14 @@ The library applies attributes and classes during drag but injects no CSS. Add y
 | `.sortable-active` | The container | During drag |
 | `[data-drag-placeholder]` | The placeholder element | During drag |
 
-**Quick-start CSS** -- minimal placeholder and drag cursor:
+**Quick-start CSS** -- FLIP animation, placeholder, and drag cursor:
 
 ```css
+/* FLIP animation for item reordering */
+[data-sortable] {
+  transition: transform 150ms;
+}
+
 /* Placeholder -- the gap left by the dragged item */
 [data-drag-placeholder] {
   background: rgba(0, 0, 0, 0.05);
@@ -120,6 +125,8 @@ The library applies attributes and classes during drag but injects no CSS. Add y
   cursor: grabbing;
 }
 ```
+
+The `transition` duration should match the `transitionMs` option (default 150ms) so cleanup timeouts stay in sync with the animation.
 
 The dragged item gets `position: fixed` with inline styles during drag. The placeholder copies computed grid/flex layout properties from the source element so multi-span items preserve the layout. All inline styles are cleaned up on drop.
 

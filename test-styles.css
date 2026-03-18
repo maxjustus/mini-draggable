@@ -1,3 +1,8 @@
+/* Sortable — FLIP animation */
+[data-sortable] {
+  transition: transform 150ms;
+}
+
 /* Sortable drag feedback */
 [data-drag-placeholder] {
   background: rgba(0, 0, 0, 0.05);
