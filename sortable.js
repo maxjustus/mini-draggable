@@ -332,6 +332,13 @@ function createSession(inst, el, initialPos) {
   const startItems = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
   const originalIndex = startItems.indexOf(el);
 
+  // indices tracks each element's current visual position (updated after
+  // each reposition). This diverges from the original DOM order as the
+  // drag progresses — items.indexOf would return stale original positions.
+  /** @type {Map<HTMLElement, number>} */
+  const indices = new Map();
+  startItems.forEach((c, i) => indices.set(c, i));
+
   /** @type {{items: HTMLElement[], startIndex: number, currentIndex: number, lastReorderTime: number, pointer: Point, activeInst: SortableInstance, dropping: boolean, indexDirty: boolean}} */
   const drag = {
     items: startItems,
@@ -386,7 +393,7 @@ function createSession(inst, el, initialPos) {
     for (const child of drag.items) {
       if (child === el || animating.has(child)) continue;
       if (hitTest(cx, cy, child)) {
-        const idx = drag.items.indexOf(child);
+        const idx = /** @type {number} */ (indices.get(child));
         if (idx !== drag.currentIndex) {
           drag.currentIndex = idx;
           reposition();
@@ -404,7 +411,7 @@ function createSession(inst, el, initialPos) {
     const dragIdx = newOrder.indexOf(el);
     const ref = newOrder.slice(dragIdx + 1).find(c => c !== el) ?? null;
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
-    drag.items = newOrder;
+    newOrder.forEach((c, i) => indices.set(c, i));
     flip(siblings, before, animating);
     drag.lastReorderTime = Date.now();
   }
@@ -439,6 +446,8 @@ function createSession(inst, el, initialPos) {
 
     drag.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== el);
     drag.items.splice(insertIdx, 0, el);
+    indices.clear();
+    drag.items.forEach((c, i) => indices.set(c, i));
     drag.startIndex = insertIdx;
     drag.currentIndex = insertIdx;
     drag.activeInst = target;
