@@ -55,7 +55,6 @@ const SETTLE_BUFFER_MS = 50;
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
 
-// --- Utilities ---
 
 /** @param {MouseEvent | TouchEvent} e @returns {Point} */
 function pointerPos(e) {
@@ -193,7 +192,6 @@ function repaint(container, selector) {
   requestAnimationFrame(() => { for (const c of items) c.style.willChange = ""; });
 }
 
-// --- Drag session ---
 
 /**
  * @param {SortableInstance} inst
@@ -235,7 +233,6 @@ function createSession(inst, el, initialPos) {
   /** @type {any} */ (document.body.style).webkitUserSelect = "none";
   document.body.style.cursor = "grabbing";
 
-  // --- Move ---
 
   /** @param {Point} pos */
   function move(pos) {
@@ -278,11 +275,7 @@ function createSession(inst, el, initialPos) {
 
     // Move placeholder
     const dragIdx = newOrder.indexOf(el);
-    /** @type {HTMLElement | null} */
-    let ref = null;
-    for (let i = dragIdx + 1; i < newOrder.length; i++) {
-      if (newOrder[i] !== el) { ref = newOrder[i]; break; }
-    }
+    const ref = newOrder.slice(dragIdx + 1).find(c => c !== el) ?? null;
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
 
     items = newOrder;
@@ -290,7 +283,6 @@ function createSession(inst, el, initialPos) {
     lastReorderTime = Date.now();
   }
 
-  // --- Cross-container transfer ---
 
   /**
    * @param {number} cx
@@ -323,12 +315,8 @@ function createSession(inst, el, initialPos) {
     placeholder.remove();
     oldInst.el.classList.remove("sortable-active");
 
-    // Find insertion point
-    let insertIdx = targetItems.length;
-    for (let i = 0; i < targetItems.length; i++) {
-      const r = targetItems[i].getBoundingClientRect();
-      if (cy < r.top + r.height / 2) { insertIdx = i; break; }
-    }
+    const found = targetItems.findIndex(c => { const r = c.getBoundingClientRect(); return cy < r.top + r.height / 2; });
+    const insertIdx = found === -1 ? targetItems.length : found;
 
     if (insertIdx >= targetItems.length) target.el.appendChild(placeholder);
     else target.el.insertBefore(placeholder, targetItems[insertIdx]);
@@ -348,7 +336,6 @@ function createSession(inst, el, initialPos) {
     flipHeight(target.el, targetHeight);
   }
 
-  // --- Auto-scroll ---
 
   function startAutoScroll() {
     if (scrolling) return;
@@ -368,10 +355,10 @@ function createSession(inst, el, initialPos) {
     requestAnimationFrame(scrollLoop);
     const d = edgeDist();
     const t = scrollThresh();
-    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -Math.pow(2, (t.y - d.top) / 28));
-    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(Math.pow(2, (t.x - d.right) / 28), 0);
-    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, Math.pow(2, (t.y - d.bottom) / 28));
-    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-Math.pow(2, (t.x - d.left) / 28), 0);
+    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -(2 ** ((t.y - d.top) / 28)));
+    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(2 ** ((t.x - d.right) / 28), 0);
+    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, 2 ** ((t.y - d.bottom) / 28));
+    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-(2 ** ((t.x - d.left) / 28)), 0);
     updateIndex();
   }
 
@@ -394,7 +381,6 @@ function createSession(inst, el, initialPos) {
     return { x: max, y: max };
   }
 
-  // --- Drop ---
 
   function drop() {
     dropping = true;
@@ -446,7 +432,6 @@ function createSession(inst, el, initialPos) {
   return { move, drop };
 }
 
-// --- Public API ---
 
 /**
  * @param {HTMLElement} container
