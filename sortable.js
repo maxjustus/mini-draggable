@@ -50,17 +50,16 @@
  *   scrollThreshold?: number,
  * }} SortableOptions
  *
- * @typedef {Required<SortableOptions>} Opts
+ * @typedef {Required<SortableOptions>} ResolvedOptions
  *
  * @typedef {{
  *   el: HTMLElement,
- *   opts: Opts,
- *   hooks: Record<string, any>,
+ *   opts: ResolvedOptions,
  *   destroy: () => void,
  * }} SortableInstance
  */
 
-/** @type {Opts} */
+/** @type {ResolvedOptions} */
 const DEFAULTS = {
   items: "[data-sortable]",
   handle: null,
@@ -473,7 +472,7 @@ function insertPlaceholderAt(placeholder, container, items, cy) {
  * sortable item, or null if the event should be ignored.
  * @param {MouseEvent | TouchEvent} event
  * @param {HTMLElement} container
- * @param {Opts} opts
+ * @param {ResolvedOptions} opts
  * @returns {HTMLElement | null}
  */
 function validateDragTarget(event, container, opts) {
@@ -516,20 +515,20 @@ class DragSession {
 
     this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(inst.opts.items)]);
     this.originalIndex = this.items.indexOf(el);
-    this.startIndex = this.originalIndex;
+    this.draggedIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
     this.pointer = initialPos;
 
     /** @type {SortableInstance} */
-    this.activeInst = inst;
+    this.currentContainer = inst;
     this.dropping = false;
     this.indexDirty = false;
 
     // Visual position tracking — diverges from DOM order after each
     // reposition. items.indexOf() would return stale original positions.
     /** @type {Map<HTMLElement, number>} */
-    this.indices = new Map();
-    this.items.forEach((child, i) => this.indices.set(child, i));
+    this.visualOrder = new Map();
+    this.items.forEach((child, i) => this.visualOrder.set(child, i));
 
     // Exclusion zone: after a swap, suppress further swaps while the
     // dragged element's center stays inside the swapped target's
@@ -617,7 +616,7 @@ class DragSession {
       if (child === this.el || this.animating.has(child)) continue;
 
       if (hitTest(cx, cy, child)) {
-        const idx = /** @type {number} */ (this.indices.get(child));
+        const idx = /** @type {number} */ (this.visualOrder.get(child));
         if (idx !== this.currentIndex) {
           this.exclusionZone = child.getBoundingClientRect();
           this.currentIndex = idx;
@@ -635,7 +634,7 @@ class DragSession {
    * same container. FLIP-animates siblings.
    */
   reposition() {
-    const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
+    const newOrder = arrMove([...this.items], this.draggedIndex, this.currentIndex);
     const siblings = this.items.filter((child) => child !== this.el);
     const beforeRects = captureRects(siblings);
 
@@ -644,7 +643,7 @@ class DragSession {
     const ref = newOrder.slice(dragIdx + 1).find((child) => child !== this.el) ?? null;
 
     /** @type {Node} */ (this.placeholder.parentNode).insertBefore(this.placeholder, ref);
-    newOrder.forEach((child, i) => this.indices.set(child, i));
+    newOrder.forEach((child, i) => this.visualOrder.set(child, i));
     flip(siblings, beforeRects, this.animating);
   }
 
@@ -655,13 +654,13 @@ class DragSession {
    * @param {number} cy
    */
   checkTransfer(cx, cy) {
-    if (hitTest(cx, cy, this.activeInst.el)) return;
+    if (hitTest(cx, cy, this.currentContainer.el)) return;
 
     const group = /** @type {Set<SortableInstance>} */ (
       groups.get(/** @type {string} */ (this.inst.opts.group))
     );
     for (const other of group) {
-      if (other === this.activeInst) continue;
+      if (other === this.currentContainer) continue;
       if (hitTest(cx, cy, other.el)) {
         this.transfer(other, cy);
         return;
@@ -676,7 +675,7 @@ class DragSession {
    * @param {number} cy
    */
   transfer(target, cy) {
-    const oldInst = this.activeInst;
+    const oldInst = this.currentContainer;
     const siblings = this.items.filter((child) => child !== this.el);
     const targetItems = /** @type {HTMLElement[]} */ ([
       ...target.el.querySelectorAll(target.opts.items),
@@ -700,12 +699,12 @@ class DragSession {
     ]).filter((child) => child !== this.el);
     this.items.splice(insertIdx, 0, this.el);
 
-    this.indices.clear();
-    this.items.forEach((child, i) => this.indices.set(child, i));
+    this.visualOrder.clear();
+    this.items.forEach((child, i) => this.visualOrder.set(child, i));
 
-    this.startIndex = insertIdx;
+    this.draggedIndex = insertIdx;
     this.currentIndex = insertIdx;
-    this.activeInst = target;
+    this.currentContainer = target;
 
     // Animate both containers
     flip(siblings, oldRects, this.animating);
@@ -734,8 +733,8 @@ class DragSession {
 
       this.cleanup();
 
-      const crossContainer = this.activeInst !== this.inst;
-      const from = crossContainer ? this.originalIndex : this.startIndex;
+      const crossContainer = this.currentContainer !== this.inst;
+      const from = crossContainer ? this.originalIndex : this.draggedIndex;
       const to = this.currentIndex;
 
       if (crossContainer && this.inst.opts.onTransfer) {
@@ -747,7 +746,7 @@ class DragSession {
               to,
               el: this.el,
               sourceContainer: this.inst,
-              targetContainer: this.activeInst,
+              targetContainer: this.currentContainer,
             }),
         );
       } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
@@ -775,7 +774,7 @@ class DragSession {
       child.removeAttribute("data-dragging");
     }
 
-    this.activeInst.el.classList.remove("sortable-active");
+    this.currentContainer.el.classList.remove("sortable-active");
     this.inst.el.classList.remove("sortable-active");
 
     document.body.style.userSelect = "";
@@ -797,15 +796,8 @@ export function sortable(container, userOpts = {}) {
   }
   initialized.add(container);
 
-  /** @type {Opts} */
+  /** @type {ResolvedOptions} */
   const opts = { ...DEFAULTS, ...userOpts };
-
-  /** @type {Record<string, any>} */
-  // Framework wrappers attach spliceOut/spliceIn functions here.
-  // During cross-container transfer, onTransfer reaches into
-  // sourceContainer.hooks.spliceOut(from) and targetContainer.hooks.spliceIn(to, item).
-  /** @type {Record<string, any>} */
-  const hooks = {};
 
   /** @type {DragSession | null} */
   let session = null;
@@ -826,7 +818,6 @@ export function sortable(container, userOpts = {}) {
   const inst = {
     el: container,
     opts,
-    hooks,
     destroy() {
       ac.abort();
       initialized.delete(container);

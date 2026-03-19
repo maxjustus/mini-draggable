@@ -31,6 +31,9 @@ export { arrMove };
  * }} UseSortableOptions
  */
 
+/** @type {WeakMap<import('./sortable.js').SortableInstance, {spliceOut: (i: number) => any, spliceIn: (i: number, item: any) => void}>} */
+const bindings = new WeakMap();
+
 /**
  * @param {{ useEffect: Function, useRef: Function }} hooks
  * @returns {(opts?: UseSortableOptions) => Ref<HTMLElement | null>}
@@ -53,14 +56,20 @@ export function createUseSortable({ useEffect, useRef }) {
         onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) =>
           optsRef.current.onReorder?.(e),
         onTransfer: (/** @type {import('./sortable.js').TransferEvent} */ e) => {
-          const item = e.sourceContainer.hooks.spliceOut?.(e.from);
-          if (item !== undefined) e.targetContainer.hooks.spliceIn?.(e.to, item);
+          const src = bindings.get(e.sourceContainer);
+          const tgt = bindings.get(e.targetContainer);
+          if (src && tgt) {
+            const item = src.spliceOut(e.from);
+            if (item !== undefined) tgt.spliceIn(e.to, item);
+          }
           optsRef.current.onTransfer?.(e);
         },
       });
-      s.hooks.spliceOut = (/** @type {number} */ i) => optsRef.current.spliceOut?.(i);
-      s.hooks.spliceIn = (/** @type {number} */ i, /** @type {any} */ item) =>
-        optsRef.current.spliceIn?.(i, item);
+      bindings.set(s, {
+        spliceOut: (/** @type {number} */ i) => optsRef.current.spliceOut?.(i),
+        spliceIn: (/** @type {number} */ i, /** @type {any} */ item) =>
+          optsRef.current.spliceIn?.(i, item),
+      });
       return () => s.destroy();
     }, []);
 

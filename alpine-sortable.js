@@ -9,6 +9,9 @@
 
 import { sortable, arrMove } from "./sortable.js";
 
+/** @type {WeakMap<import('./sortable.js').SortableInstance, {spliceOut: (i: number) => any, spliceIn: (i: number, item: any) => void}>} */
+const bindings = new WeakMap();
+
 /** @param {any} Alpine */
 export default function AlpineSortable(Alpine) {
   Alpine.directive(
@@ -23,19 +26,13 @@ export default function AlpineSortable(Alpine) {
     ) => {
       const group = modifiers[0] || null;
 
-      /**
-       * @param {number} i
-       * @returns {any}
-       */
+      /** @param {number} i @returns {any} */
       const spliceOut = (i) => {
         if (!expression) return undefined;
         return evaluate(expression).splice(i, 1)[0];
       };
 
-      /**
-       * @param {number} i
-       * @param {any} item
-       */
+      /** @param {number} i @param {any} item */
       const spliceIn = (i, item) => {
         if (!expression) return;
         evaluate(expression).splice(i, 0, item);
@@ -58,8 +55,12 @@ export default function AlpineSortable(Alpine) {
         },
         /** @param {import('./sortable.js').TransferEvent} evt */
         onTransfer({ from, to, sourceContainer, targetContainer }) {
-          const item = sourceContainer.hooks.spliceOut?.(from);
-          if (item !== undefined) targetContainer.hooks.spliceIn?.(to, item);
+          const src = bindings.get(sourceContainer);
+          const tgt = bindings.get(targetContainer);
+          if (src && tgt) {
+            const item = src.spliceOut(from);
+            if (item !== undefined) tgt.spliceIn(to, item);
+          }
           el.dispatchEvent(
             new CustomEvent("transfer", {
               detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
@@ -69,7 +70,7 @@ export default function AlpineSortable(Alpine) {
         },
       });
 
-      d.hooks = { spliceOut, spliceIn };
+      bindings.set(d, { spliceOut, spliceIn });
       cleanup(() => d.destroy());
     },
   );
