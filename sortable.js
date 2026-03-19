@@ -315,19 +315,6 @@ function flipHeight(container, firstHeight) {
   setTimeout(cleanup, cssTransitionMs(container));
 }
 
-/**
- * Safari workaround: toggling will-change forces a compositing layer
- * rebuild to fix hit-test desync after scroll + transform.
- * @param {HTMLElement} container
- * @param {string} selector
- */
-function repaint(container, selector) {
-  const items = /** @type {NodeListOf<HTMLElement>} */ (container.querySelectorAll(selector));
-  for (const child of items) child.style.willChange = "transform";
-  requestAnimationFrame(() => {
-    for (const child of items) child.style.willChange = "";
-  });
-}
 
 /**
  * Lift an element out of normal flow into a fixed position at its current
@@ -797,10 +784,6 @@ class DragSession {
     /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";
 
-    repaint(this.inst.el, this.inst.opts.items);
-    if (this.activeInst !== this.inst) {
-      repaint(this.activeInst.el, this.inst.opts.items);
-    }
   }
 }
 
