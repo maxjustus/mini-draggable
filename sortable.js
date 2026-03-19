@@ -49,7 +49,6 @@ const DEFAULTS = {
 };
 
 const STYLE_PROPS = /** @type {const} */ (["transform", "transition", "position", "zIndex", "top", "left", "width", "height"]);
-const REORDER_COOLDOWN_MS = 50;
 const SETTLE_BUFFER_MS = 50;
 
 /** @type {Map<string, Set<SortableInstance>>} */
@@ -339,12 +338,17 @@ function createSession(inst, el, initialPos) {
   const indices = new Map();
   startItems.forEach((c, i) => indices.set(c, i));
 
-  /** @type {{items: HTMLElement[], startIndex: number, currentIndex: number, lastReorderTime: number, pointer: Point, activeInst: SortableInstance, dropping: boolean, indexDirty: boolean}} */
+  // After a reposition, suppress further swaps while the dragged element's
+  // center stays inside the swapped target's pre-swap rect. Prevents
+  // oscillation in grids where a swap moves the target under the cursor.
+  /** @type {DOMRect | null} */
+  let exclusionZone = null;
+
+  /** @type {{items: HTMLElement[], startIndex: number, currentIndex: number, pointer: Point, activeInst: SortableInstance, dropping: boolean, indexDirty: boolean}} */
   const drag = {
     items: startItems,
     startIndex: originalIndex,
     currentIndex: originalIndex,
-    lastReorderTime: 0,
     pointer: initialPos,
     activeInst: inst,
     dropping: false,
@@ -384,17 +388,24 @@ function createSession(inst, el, initialPos) {
 
   function updateIndex() {
     if (drag.dropping) return;
-    if (Date.now() - drag.lastReorderTime < REORDER_COOLDOWN_MS) return;
 
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
+
+    // Don't re-evaluate swaps while inside the last swap's exclusion zone
+    if (exclusionZone) {
+      if (cx > exclusionZone.left && cx < exclusionZone.right &&
+          cy > exclusionZone.top && cy < exclusionZone.bottom) return;
+      exclusionZone = null;
+    }
 
     for (const child of drag.items) {
       if (child === el || animating.has(child)) continue;
       if (hitTest(cx, cy, child)) {
         const idx = /** @type {number} */ (indices.get(child));
         if (idx !== drag.currentIndex) {
+          exclusionZone = child.getBoundingClientRect();
           drag.currentIndex = idx;
           reposition();
         }
@@ -413,7 +424,6 @@ function createSession(inst, el, initialPos) {
     /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
     newOrder.forEach((c, i) => indices.set(c, i));
     flip(siblings, before, animating);
-    drag.lastReorderTime = Date.now();
   }
 
   /** @param {number} cx @param {number} cy */
