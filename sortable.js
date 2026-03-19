@@ -203,26 +203,6 @@ function liftElement(el, box) {
   });
 }
 
-/**
- * @param {HTMLElement[]} items
- * @param {HTMLElement} placeholder
- * @param {SortableInstance} inst
- * @param {SortableInstance} activeInst
- */
-function cleanupDrag(items, placeholder, inst, activeInst) {
-  placeholder.remove();
-  for (const child of items) {
-    for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
-    child.removeAttribute("data-dragging");
-  }
-  activeInst.el.classList.remove("sortable-active");
-  inst.el.classList.remove("sortable-active");
-  document.body.style.userSelect = "";
-  /** @type {any} */ (document.body.style).webkitUserSelect = "";
-  document.body.style.cursor = "";
-  repaint(inst.el, inst.opts.items);
-  if (activeInst !== inst) repaint(activeInst.el, inst.opts.items);
-}
 
 /**
  * @param {{scrollEl: HTMLElement | null, target: ScrollTarget, threshold: number, getPointer: () => Point, isActive: () => boolean, onTick: () => void}} cfg
@@ -322,14 +302,13 @@ class DragSession {
    */
   constructor(inst, el, initialPos) {
     this.inst = inst;
-    this.opts = inst.opts;
     this.el = el;
     this.initialPos = initialPos;
     this.box = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
     /** @type {Set<HTMLElement>} */
     this.animating = new Set();
-    this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(this.opts.items)]);
+    this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(this.inst.opts.items)]);
     this.originalIndex = this.items.indexOf(el);
     this.startIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
@@ -361,10 +340,20 @@ class DragSession {
     this.scroller = createAutoScroller({
       scrollEl,
       target: buildScrollTarget(scrollEl),
-      threshold: this.opts.scrollThreshold,
+      threshold: this.inst.opts.scrollThreshold,
       getPointer: () => this.pointer,
       isActive: () => !this.dropping,
-      onTick: () => this.updateIndex(),
+      onTick: () => this.scheduleUpdate(),
+    });
+  }
+
+  scheduleUpdate() {
+    if (this.indexDirty) return;
+    this.indexDirty = true;
+    requestAnimationFrame(() => {
+      this.indexDirty = false;
+      this.scroller.start();
+      this.updateIndex();
     });
   }
 
@@ -373,11 +362,7 @@ class DragSession {
     if (this.dropping) return;
     this.pointer = pos;
     this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
-    this.scroller.start();
-    if (!this.indexDirty) {
-      this.indexDirty = true;
-      requestAnimationFrame(() => { this.indexDirty = false; this.updateIndex(); });
-    }
+    this.scheduleUpdate();
   }
 
   updateIndex() {
@@ -405,7 +390,7 @@ class DragSession {
         return;
       }
     }
-    if (this.opts.group) this.checkTransfer(cx, cy);
+    if (this.inst.opts.group) this.checkTransfer(cx, cy);
   }
 
   reposition() {
@@ -422,7 +407,7 @@ class DragSession {
   /** @param {number} cx @param {number} cy */
   checkTransfer(cx, cy) {
     if (hitTest(cx, cy, this.activeInst.el)) return;
-    const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (this.opts.group)));
+    const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (this.inst.opts.group)));
     for (const other of group) {
       if (other === this.activeInst) continue;
       if (hitTest(cx, cy, other.el)) { this.transfer(other, cy); return; }
@@ -474,23 +459,38 @@ class DragSession {
       if (done) return;
       done = true;
 
-      cleanupDrag(this.items, this.placeholder, this.inst, this.activeInst);
+      this.cleanup();
 
       const crossContainer = this.activeInst !== this.inst;
       const from = crossContainer ? this.originalIndex : this.startIndex;
       const to = this.currentIndex;
 
-      if (crossContainer && this.opts.onTransfer) {
-        requestAnimationFrame(() => this.opts.onTransfer && this.opts.onTransfer({
+      if (crossContainer && this.inst.opts.onTransfer) {
+        requestAnimationFrame(() => this.inst.opts.onTransfer && this.inst.opts.onTransfer({
           from, to, el: this.el, sourceContainer: this.inst, targetContainer: this.activeInst,
         }));
-      } else if (!crossContainer && from !== to && this.opts.onReorder) {
-        requestAnimationFrame(() => this.opts.onReorder && this.opts.onReorder({ from, to }));
+      } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
+        requestAnimationFrame(() => this.inst.opts.onReorder && this.inst.opts.onReorder({ from, to }));
       }
     };
 
     this.el.addEventListener("transitionend", onSettle, { once: true });
     setTimeout(onSettle, cssTransitionMs(this.el) + SETTLE_BUFFER_MS);
+  }
+
+  cleanup() {
+    this.placeholder.remove();
+    for (const child of this.items) {
+      for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
+      child.removeAttribute("data-dragging");
+    }
+    this.activeInst.el.classList.remove("sortable-active");
+    this.inst.el.classList.remove("sortable-active");
+    document.body.style.userSelect = "";
+    /** @type {any} */ (document.body.style).webkitUserSelect = "";
+    document.body.style.cursor = "";
+    repaint(this.inst.el, this.inst.opts.items);
+    if (this.activeInst !== this.inst) repaint(this.activeInst.el, this.inst.opts.items);
   }
 }
 
@@ -574,7 +574,7 @@ export function sortable(container, userOpts = {}) {
 
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
-    sig.addEventListener("abort", () => dragAc.abort());
+    sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
     window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
     window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
     window.addEventListener("mouseup", onUp, { signal: dragSig });
