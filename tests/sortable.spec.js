@@ -30,10 +30,7 @@ async function drag(page, from, to) {
   // updateCurrentIndex can detect intermediate positions.
   const steps = 15;
   for (let i = 1; i <= steps; i++) {
-    await page.mouse.move(
-      sx + ((ex - sx) * i) / steps,
-      sy + ((ey - sy) * i) / steps,
-    );
+    await page.mouse.move(sx + ((ex - sx) * i) / steps, sy + ((ey - sy) * i) / steps);
     // Small pause every few steps to let rAF fire
     if (i % 5 === 0) await page.waitForTimeout(50);
   }
@@ -105,9 +102,7 @@ test.describe("Alpine.js - test.html", () => {
   });
 
   test("3. disabled items cannot be dragged", async ({ page }) => {
-    const container = page.locator(
-      "h2:has-text('3. With disabled item') + div",
-    );
+    const container = page.locator("h2:has-text('3. With disabled item') + div");
     const items = container.locator("[data-sortable]");
 
     const before = await items.allTextContents();
@@ -121,9 +116,7 @@ test.describe("Alpine.js - test.html", () => {
   });
 
   test("3. non-disabled items can be reordered", async ({ page }) => {
-    const container = page.locator(
-      "h2:has-text('3. With disabled item') + div",
-    );
+    const container = page.locator("h2:has-text('3. With disabled item') + div");
     const items = container.locator("[data-sortable]");
 
     const before = await items.allTextContents();
@@ -140,9 +133,7 @@ test.describe("Alpine.js - test.html", () => {
   });
 
   test("4. scrollable container auto-scrolls", async ({ page }) => {
-    const scrollable = page.locator(
-      "h2:has-text('4. Scrollable container') + div .scrollable",
-    );
+    const scrollable = page.locator("h2:has-text('4. Scrollable container') + div .scrollable");
     const items = scrollable.locator("[data-sortable]");
 
     // Scroll into view first
@@ -189,11 +180,7 @@ test.describe("Alpine.js - test.html", () => {
     const doingCount = await doingList.locator("[data-sortable]").count();
 
     // Drag first todo item to the doing column container
-    await drag(
-      page,
-      todoList.locator("[data-sortable]").nth(0),
-      doingList,
-    );
+    await drag(page, todoList.locator("[data-sortable]").nth(0), doingList);
 
     // Wait extra for Alpine reactivity
     await page.waitForTimeout(300);
@@ -231,9 +218,7 @@ test.describe("Preact/hooks - test-react.html", () => {
   });
 
   test("2. handles - drag from handle works", async ({ page }) => {
-    const section = page
-      .locator("h2:has-text('2. Drag handles')")
-      .locator("~ div >> nth=0");
+    const section = page.locator("h2:has-text('2. Drag handles')").locator("~ div >> nth=0");
     const items = section.locator("[data-sortable]");
     const handles = section.locator("[data-sortable-handle]");
 
@@ -246,9 +231,7 @@ test.describe("Preact/hooks - test-react.html", () => {
   });
 
   test("2. handles - drag from item body does NOT work", async ({ page }) => {
-    const section = page
-      .locator("h2:has-text('2. Drag handles')")
-      .locator("~ div >> nth=0");
+    const section = page.locator("h2:has-text('2. Drag handles')").locator("~ div >> nth=0");
     const items = section.locator("[data-sortable]");
 
     const before = await items.allTextContents();
@@ -262,9 +245,7 @@ test.describe("Preact/hooks - test-react.html", () => {
   });
 
   test("3. disabled items cannot be dragged", async ({ page }) => {
-    const section = page
-      .locator("h2:has-text('3. Disabled items')")
-      .locator("~ div >> nth=0");
+    const section = page.locator("h2:has-text('3. Disabled items')").locator("~ div >> nth=0");
     const items = section.locator("[data-sortable]");
 
     const before = await items.allTextContents();
@@ -282,11 +263,7 @@ test.describe("Preact/hooks - test-react.html", () => {
     const doingCount = await doingList.locator("[data-sortable]").count();
 
     // Drag first todo item to the doing column container
-    await drag(
-      page,
-      todoList.locator("[data-sortable]").nth(0),
-      doingList,
-    );
+    await drag(page, todoList.locator("[data-sortable]").nth(0), doingList);
 
     // Wait extra for Preact reactivity
     await page.waitForTimeout(300);

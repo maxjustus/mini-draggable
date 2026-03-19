@@ -12,7 +12,5 @@ export default defineConfig({
     url: "http://127.0.0.1:3813",
     reuseExistingServer: true,
   },
-  projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-  ],
+  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

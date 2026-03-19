@@ -74,8 +74,14 @@ const DEFAULTS = {
 };
 
 const LIFTED_STYLE_PROPS = /** @type {const} */ ([
-  "transform", "transition", "position", "zIndex",
-  "top", "left", "width", "height",
+  "transform",
+  "transition",
+  "position",
+  "zIndex",
+  "top",
+  "left",
+  "width",
+  "height",
 ]);
 const SETTLE_BUFFER_MS = 50;
 
@@ -84,7 +90,6 @@ const groups = new Map();
 
 /** @type {WeakSet<HTMLElement>} */
 const initialized = new WeakSet();
-
 
 /**
  * Extract pointer coordinates from a mouse or touch event.
@@ -170,24 +175,53 @@ function findScrollParent(el) {
 function buildScrollTarget(el) {
   if (el) {
     return {
-      scrollBy(x, y) { el.scrollTop += y; el.scrollLeft += x; },
-      get scrollX() { return el.scrollLeft; },
-      get scrollY() { return el.scrollTop; },
-      get scrollWidth() { return el.scrollWidth; },
-      get scrollHeight() { return el.scrollHeight; },
-      get width() { return el.getBoundingClientRect().width; },
-      get height() { return el.getBoundingClientRect().height; },
+      scrollBy(x, y) {
+        el.scrollTop += y;
+        el.scrollLeft += x;
+      },
+      get scrollX() {
+        return el.scrollLeft;
+      },
+      get scrollY() {
+        return el.scrollTop;
+      },
+      get scrollWidth() {
+        return el.scrollWidth;
+      },
+      get scrollHeight() {
+        return el.scrollHeight;
+      },
+      get width() {
+        return el.getBoundingClientRect().width;
+      },
+      get height() {
+        return el.getBoundingClientRect().height;
+      },
     };
   }
 
   return {
-    scrollBy(x, y) { window.scrollBy(x, y); },
-    get scrollX() { return window.scrollX; },
-    get scrollY() { return window.scrollY; },
-    get scrollWidth() { return document.body.scrollWidth; },
-    get scrollHeight() { return document.body.scrollHeight; },
-    get width() { return window.innerWidth; },
-    get height() { return window.innerHeight; },
+    scrollBy(x, y) {
+      window.scrollBy(x, y);
+    },
+    get scrollX() {
+      return window.scrollX;
+    },
+    get scrollY() {
+      return window.scrollY;
+    },
+    get scrollWidth() {
+      return document.body.scrollWidth;
+    },
+    get scrollHeight() {
+      return document.body.scrollHeight;
+    },
+    get width() {
+      return window.innerWidth;
+    },
+    get height() {
+      return window.innerHeight;
+    },
   };
 }
 
@@ -325,7 +359,14 @@ function liftElement(el, box) {
  * }} config
  * @returns {{start: () => void}}
  */
-function createAutoScroller({ scrollEl, target: scrollTarget, threshold, getPointer, isActive, onTick }) {
+function createAutoScroller({
+  scrollEl,
+  target: scrollTarget,
+  threshold,
+  getPointer,
+  isActive,
+  onTick,
+}) {
   let scrolling = false;
 
   /**
@@ -368,10 +409,14 @@ function createAutoScroller({ scrollEl, target: scrollTarget, threshold, getPoin
    * @returns {boolean}
    */
   function shouldScroll(dist, thresh) {
-    return (dist.top < thresh.y && scrollTarget.scrollY > 0) ||
-           (dist.right < thresh.x && scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth) ||
-           (dist.bottom < thresh.y && scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight) ||
-           (dist.left < thresh.x && scrollTarget.scrollX > 0);
+    return (
+      (dist.top < thresh.y && scrollTarget.scrollY > 0) ||
+      (dist.right < thresh.x &&
+        scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth) ||
+      (dist.bottom < thresh.y &&
+        scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight) ||
+      (dist.left < thresh.x && scrollTarget.scrollX > 0)
+    );
   }
 
   function loop() {
@@ -387,10 +432,16 @@ function createAutoScroller({ scrollEl, target: scrollTarget, threshold, getPoin
     if (dist.top < thresh.y && scrollTarget.scrollY > 0)
       scrollTarget.scrollBy(0, -(2 ** ((thresh.y - dist.top) / 28)));
 
-    if (dist.right < thresh.x && scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth)
+    if (
+      dist.right < thresh.x &&
+      scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth
+    )
       scrollTarget.scrollBy(2 ** ((thresh.x - dist.right) / 28), 0);
 
-    if (dist.bottom < thresh.y && scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight)
+    if (
+      dist.bottom < thresh.y &&
+      scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight
+    )
       scrollTarget.scrollBy(0, 2 ** ((thresh.y - dist.bottom) / 28));
 
     if (dist.left < thresh.x && scrollTarget.scrollX > 0)
@@ -420,7 +471,7 @@ function createAutoScroller({ scrollEl, target: scrollTarget, threshold, getPoin
  * @returns {number} the insertion index
  */
 function insertPlaceholderAt(placeholder, container, items, cy) {
-  const found = items.findIndex(child => {
+  const found = items.findIndex((child) => {
     const rect = child.getBoundingClientRect();
     return cy < rect.top + rect.height / 2;
   });
@@ -457,7 +508,6 @@ function validateDragTarget(event, container, opts) {
   return item;
 }
 
-
 /**
  * Short-lived drag session. Created when the drag threshold is crossed,
  * discarded after the drop animation settles. All drag state lives here
@@ -479,9 +529,7 @@ class DragSession {
     /** @type {Set<HTMLElement>} */
     this.animating = new Set();
 
-    this.items = /** @type {HTMLElement[]} */ (
-      [...inst.el.querySelectorAll(inst.opts.items)]
-    );
+    this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(inst.opts.items)]);
     this.originalIndex = this.items.indexOf(el);
     this.startIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
@@ -569,8 +617,12 @@ class DragSession {
 
     // Stay inside the exclusion zone — no swaps until the cursor leaves
     if (this.exclusionZone) {
-      if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
-          cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) {
+      if (
+        cx > this.exclusionZone.left &&
+        cx < this.exclusionZone.right &&
+        cy > this.exclusionZone.top &&
+        cy < this.exclusionZone.bottom
+      ) {
         return;
       }
       this.exclusionZone = null;
@@ -599,12 +651,12 @@ class DragSession {
    */
   reposition() {
     const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
-    const siblings = this.items.filter(child => child !== this.el);
+    const siblings = this.items.filter((child) => child !== this.el);
     const beforeRects = captureRects(siblings);
 
     // Find the next sibling after the dragged element in the new order
     const dragIdx = newOrder.indexOf(this.el);
-    const ref = newOrder.slice(dragIdx + 1).find(child => child !== this.el) ?? null;
+    const ref = newOrder.slice(dragIdx + 1).find((child) => child !== this.el) ?? null;
 
     /** @type {Node} */ (this.placeholder.parentNode).insertBefore(this.placeholder, ref);
     newOrder.forEach((child, i) => this.indices.set(child, i));
@@ -640,10 +692,10 @@ class DragSession {
    */
   transfer(target, cy) {
     const oldInst = this.activeInst;
-    const siblings = this.items.filter(child => child !== this.el);
-    const targetItems = /** @type {HTMLElement[]} */ (
-      [...target.el.querySelectorAll(target.opts.items)]
-    ).filter(child => child !== this.el);
+    const siblings = this.items.filter((child) => child !== this.el);
+    const targetItems = /** @type {HTMLElement[]} */ ([
+      ...target.el.querySelectorAll(target.opts.items),
+    ]).filter((child) => child !== this.el);
 
     // Capture pre-transfer state for FLIP
     const oldRects = captureRects(siblings);
@@ -658,9 +710,9 @@ class DragSession {
     target.el.classList.add("sortable-active");
 
     // Rebuild tracking for the new container
-    this.items = /** @type {HTMLElement[]} */ (
-      [...target.el.querySelectorAll(target.opts.items)]
-    ).filter(child => child !== this.el);
+    this.items = /** @type {HTMLElement[]} */ ([
+      ...target.el.querySelectorAll(target.opts.items),
+    ]).filter((child) => child !== this.el);
     this.items.splice(insertIdx, 0, this.el);
 
     this.indices.clear();
@@ -702,11 +754,21 @@ class DragSession {
       const to = this.currentIndex;
 
       if (crossContainer && this.inst.opts.onTransfer) {
-        requestAnimationFrame(() => this.inst.opts.onTransfer && this.inst.opts.onTransfer({
-          from, to, el: this.el, sourceContainer: this.inst, targetContainer: this.activeInst,
-        }));
+        requestAnimationFrame(
+          () =>
+            this.inst.opts.onTransfer &&
+            this.inst.opts.onTransfer({
+              from,
+              to,
+              el: this.el,
+              sourceContainer: this.inst,
+              targetContainer: this.activeInst,
+            }),
+        );
       } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
-        requestAnimationFrame(() => this.inst.opts.onReorder && this.inst.opts.onReorder({ from, to }));
+        requestAnimationFrame(
+          () => this.inst.opts.onReorder && this.inst.opts.onReorder({ from, to }),
+        );
       }
     };
 
@@ -741,7 +803,6 @@ class DragSession {
     }
   }
 }
-
 
 /**
  * Make a container's children sortable via drag-and-drop.
@@ -809,9 +870,13 @@ export function sortable(container, userOpts = {}) {
       const target = /** @type {HTMLElement} */ (event.target);
       setTimeout(() => {
         if (!session) {
-          target.dispatchEvent(new MouseEvent("click", {
-            bubbles: true, cancelable: true, view: window,
-          }));
+          target.dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+            }),
+          );
         }
       }, opts.touchClickDelay);
     }
@@ -849,8 +914,14 @@ export function sortable(container, userOpts = {}) {
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
 
-    window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
-    window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
+    window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), {
+      passive: false,
+      signal: dragSig,
+    });
+    window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), {
+      passive: false,
+      signal: dragSig,
+    });
     window.addEventListener("mouseup", onUp, { signal: dragSig });
     window.addEventListener("touchend", onUp, { signal: dragSig });
     window.addEventListener("touchcancel", onUp, { signal: dragSig });
@@ -858,8 +929,12 @@ export function sortable(container, userOpts = {}) {
 
   on(container, "mousedown", /** @type {EventListener} */ (onPointerDown));
   on(container, "touchstart", /** @type {EventListener} */ (onPointerDown), { passive: false });
-  on(window, "selectstart", (event) => { if (session) event.preventDefault(); });
-  on(window, "dragstart", (event) => { if (session) event.preventDefault(); });
+  on(window, "selectstart", (event) => {
+    if (session) event.preventDefault();
+  });
+  on(window, "dragstart", (event) => {
+    if (session) event.preventDefault();
+  });
 
   return inst;
 }

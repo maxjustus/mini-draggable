@@ -4,5 +4,8 @@ serve:
 check:
 	npx tsc --noEmit
 
+fmt:
+	npx prettier --write '*.js' 'tests/**/*.js'
+
 test:
 	npx playwright test

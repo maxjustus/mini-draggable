@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/maxjustus/mini-sortable#readme",
   "devDependencies": {
-    "@playwright/test": "^1.58.2"
+    "@playwright/test": "^1.58.2",
+    "prettier": "^3.8.1"
   }
 }

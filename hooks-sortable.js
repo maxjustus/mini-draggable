@@ -11,7 +11,7 @@
 //
 //   const useSortable = createUseSortable({ useEffect, useRef });
 
-import { sortable, arrMove } from './sortable.js';
+import { sortable, arrMove } from "./sortable.js";
 export { arrMove };
 
 /**
@@ -48,17 +48,19 @@ export function createUseSortable({ useEffect, useRef }) {
     useEffect(() => {
       if (!ref.current) return;
       const s = sortable(ref.current, {
-        handle:   optsRef.current.handle   ? "[data-sortable-handle]" : null,
-        group:    optsRef.current.group    ?? null,
-        onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) => optsRef.current.onReorder?.(e),
+        handle: optsRef.current.handle ? "[data-sortable-handle]" : null,
+        group: optsRef.current.group ?? null,
+        onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) =>
+          optsRef.current.onReorder?.(e),
         onTransfer: (/** @type {import('./sortable.js').TransferEvent} */ e) => {
           const item = e.sourceContainer.meta.spliceOut?.(e.from);
           if (item !== undefined) e.targetContainer.meta.spliceIn?.(e.to, item);
           optsRef.current.onTransfer?.(e);
         },
       });
-      s.meta.spliceOut = (/** @type {number} */ i)                    => optsRef.current.spliceOut?.(i);
-      s.meta.spliceIn  = (/** @type {number} */ i, /** @type {any} */ item) => optsRef.current.spliceIn?.(i, item);
+      s.meta.spliceOut = (/** @type {number} */ i) => optsRef.current.spliceOut?.(i);
+      s.meta.spliceIn = (/** @type {number} */ i, /** @type {any} */ item) =>
+        optsRef.current.spliceIn?.(i, item);
       return () => s.destroy();
     }, []);
 
