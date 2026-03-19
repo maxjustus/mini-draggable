@@ -83,7 +83,7 @@ const LIFTED_STYLE_PROPS = /** @type {const} */ ([
   "width",
   "height",
 ]);
-const SETTLE_BUFFER_MS = 50;
+
 
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
@@ -288,7 +288,7 @@ function flip(items, beforeRects, animating) {
     animating.add(child);
     const done = () => animating.delete(child);
     child.addEventListener("transitionend", done, { once: true });
-    setTimeout(done, cssTransitionMs(child) + SETTLE_BUFFER_MS);
+    setTimeout(done, cssTransitionMs(child));
   }
 }
 
@@ -312,7 +312,7 @@ function flipHeight(container, firstHeight) {
     container.style.transition = "";
   };
   container.addEventListener("transitionend", cleanup, { once: true });
-  setTimeout(cleanup, cssTransitionMs(container) + SETTLE_BUFFER_MS);
+  setTimeout(cleanup, cssTransitionMs(container));
 }
 
 /**
@@ -743,7 +743,7 @@ class DragSession {
     this.el.style.transform = `translate3d(${target.left - this.box.left}px, ${target.top - this.box.top}px, 0)`;
 
     let done = false;
-    const onSettle = () => {
+    const finalizeMove = () => {
       if (done) return;
       done = true;
 
@@ -772,8 +772,8 @@ class DragSession {
       }
     };
 
-    this.el.addEventListener("transitionend", onSettle, { once: true });
-    setTimeout(onSettle, cssTransitionMs(this.el) + SETTLE_BUFFER_MS);
+    this.el.addEventListener("transitionend", finalizeMove, { once: true });
+    setTimeout(finalizeMove, cssTransitionMs(this.el));
   }
 
   /**
