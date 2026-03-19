@@ -209,7 +209,7 @@ function liftElement(el, box) {
  * @param {SortableInstance} inst
  * @param {SortableInstance} activeInst
  */
-function settle(items, placeholder, inst, activeInst) {
+function cleanupDrag(items, placeholder, inst, activeInst) {
   placeholder.remove();
   for (const child of items) {
     for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
@@ -281,12 +281,11 @@ function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isAct
 }
 
 /**
- * Insert placeholder into container at the vertical position closest to cy.
  * @param {HTMLElement} placeholder
  * @param {HTMLElement} container
  * @param {HTMLElement[]} items
  * @param {number} cy
- * @returns {number} insertion index
+ * @returns {number}
  */
 function insertPlaceholderAt(placeholder, container, items, cy) {
   const found = items.findIndex(c => { const r = c.getBoundingClientRect(); return cy < r.top + r.height / 2; });
@@ -297,11 +296,10 @@ function insertPlaceholderAt(placeholder, container, items, cy) {
 }
 
 /**
- * Validate a pointer event as a valid drag start.
  * @param {MouseEvent | TouchEvent} e
  * @param {HTMLElement} container
  * @param {Opts} opts
- * @returns {HTMLElement | null} the target item, or null if invalid
+ * @returns {HTMLElement | null}
  */
 function validateDragTarget(e, container, opts) {
   const target = /** @type {HTMLElement} */ (e.target);
@@ -316,191 +314,184 @@ function validateDragTarget(e, container, opts) {
   return item;
 }
 
-/**
- * @param {SortableInstance} inst
- * @param {HTMLElement} el
- * @param {Point} initialPos
- */
-function createSession(inst, el, initialPos) {
-  const { opts } = inst;
-  const box = el.getBoundingClientRect();
-  const placeholder = createPlaceholder(el);
-  /** @type {Set<HTMLElement>} */
-  const animating = new Set();
+class DragSession {
+  /**
+   * @param {SortableInstance} inst
+   * @param {HTMLElement} el
+   * @param {Point} initialPos
+   */
+  constructor(inst, el, initialPos) {
+    this.inst = inst;
+    this.opts = inst.opts;
+    this.el = el;
+    this.initialPos = initialPos;
+    this.box = el.getBoundingClientRect();
+    this.placeholder = createPlaceholder(el);
+    /** @type {Set<HTMLElement>} */
+    this.animating = new Set();
+    this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(this.opts.items)]);
+    this.originalIndex = this.items.indexOf(el);
+    this.startIndex = this.originalIndex;
+    this.currentIndex = this.originalIndex;
+    this.pointer = initialPos;
+    /** @type {SortableInstance} */
+    this.activeInst = inst;
+    this.dropping = false;
+    this.indexDirty = false;
 
-  const startItems = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(opts.items)]);
-  const originalIndex = startItems.indexOf(el);
+    // Visual position tracking — diverges from DOM order after each reposition
+    /** @type {Map<HTMLElement, number>} */
+    this.indices = new Map();
+    this.items.forEach((c, i) => this.indices.set(c, i));
 
-  // indices tracks each element's current visual position (updated after
-  // each reposition). This diverges from the original DOM order as the
-  // drag progresses — items.indexOf would return stale original positions.
-  /** @type {Map<HTMLElement, number>} */
-  const indices = new Map();
-  startItems.forEach((c, i) => indices.set(c, i));
+    // Exclusion zone: suppress swaps while dragged center is inside the
+    // last-swapped target's pre-swap rect (prevents grid oscillation)
+    /** @type {DOMRect | null} */
+    this.exclusionZone = null;
 
-  // After a reposition, suppress further swaps while the dragged element's
-  // center stays inside the swapped target's pre-swap rect. Prevents
-  // oscillation in grids where a swap moves the target under the cursor.
-  /** @type {DOMRect | null} */
-  let exclusionZone = null;
+    /** @type {Node} */ (el.parentNode).insertBefore(this.placeholder, el);
+    liftElement(el, this.box);
+    el.setAttribute("data-dragging", "");
+    inst.el.classList.add("sortable-active");
+    document.body.style.userSelect = "none";
+    /** @type {any} */ (document.body.style).webkitUserSelect = "none";
+    document.body.style.cursor = "grabbing";
 
-  /** @type {{items: HTMLElement[], startIndex: number, currentIndex: number, pointer: Point, activeInst: SortableInstance, dropping: boolean, indexDirty: boolean}} */
-  const drag = {
-    items: startItems,
-    startIndex: originalIndex,
-    currentIndex: originalIndex,
-    pointer: initialPos,
-    activeInst: inst,
-    dropping: false,
-    indexDirty: false,
-  };
-
-  // Lift element and activate drag state
-  /** @type {Node} */ (el.parentNode).insertBefore(placeholder, el);
-  liftElement(el, box);
-  el.setAttribute("data-dragging", "");
-  inst.el.classList.add("sortable-active");
-  document.body.style.userSelect = "none";
-  /** @type {any} */ (document.body.style).webkitUserSelect = "none";
-  document.body.style.cursor = "grabbing";
-
-  const scrollEl = findScrollParent(inst.el);
-  const scroller = createAutoScroller({
-    scrollEl,
-    target: buildScrollTarget(scrollEl),
-    threshold: opts.scrollThreshold,
-    getPointer: () => drag.pointer,
-    isActive: () => !drag.dropping,
-    onTick: updateIndex,
-  });
+    const scrollEl = findScrollParent(inst.el);
+    this.scroller = createAutoScroller({
+      scrollEl,
+      target: buildScrollTarget(scrollEl),
+      threshold: this.opts.scrollThreshold,
+      getPointer: () => this.pointer,
+      isActive: () => !this.dropping,
+      onTick: () => this.updateIndex(),
+    });
+  }
 
   /** @param {Point} pos */
-  function move(pos) {
-    if (drag.dropping) return;
-    drag.pointer = pos;
-    el.style.transform = `translate3d(${pos.x - initialPos.x}px, ${pos.y - initialPos.y}px, 0)`;
-    scroller.start();
-    if (!drag.indexDirty) {
-      drag.indexDirty = true;
-      requestAnimationFrame(() => { drag.indexDirty = false; updateIndex(); });
+  move(pos) {
+    if (this.dropping) return;
+    this.pointer = pos;
+    this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
+    this.scroller.start();
+    if (!this.indexDirty) {
+      this.indexDirty = true;
+      requestAnimationFrame(() => { this.indexDirty = false; this.updateIndex(); });
     }
   }
 
-  function updateIndex() {
-    if (drag.dropping) return;
+  updateIndex() {
+    if (this.dropping) return;
 
-    const r = el.getBoundingClientRect();
+    const r = this.el.getBoundingClientRect();
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
 
-    // Don't re-evaluate swaps while inside the last swap's exclusion zone
-    if (exclusionZone) {
-      if (cx > exclusionZone.left && cx < exclusionZone.right &&
-          cy > exclusionZone.top && cy < exclusionZone.bottom) return;
-      exclusionZone = null;
+    if (this.exclusionZone) {
+      if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
+          cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return;
+      this.exclusionZone = null;
     }
 
-    for (const child of drag.items) {
-      if (child === el || animating.has(child)) continue;
+    for (const child of this.items) {
+      if (child === this.el || this.animating.has(child)) continue;
       if (hitTest(cx, cy, child)) {
-        const idx = /** @type {number} */ (indices.get(child));
-        if (idx !== drag.currentIndex) {
-          exclusionZone = child.getBoundingClientRect();
-          drag.currentIndex = idx;
-          reposition();
+        const idx = /** @type {number} */ (this.indices.get(child));
+        if (idx !== this.currentIndex) {
+          this.exclusionZone = child.getBoundingClientRect();
+          this.currentIndex = idx;
+          this.reposition();
         }
         return;
       }
     }
-    if (opts.group) checkTransfer(cx, cy);
+    if (this.opts.group) this.checkTransfer(cx, cy);
   }
 
-  function reposition() {
-    const newOrder = arrMove([...drag.items], drag.startIndex, drag.currentIndex);
-    const siblings = drag.items.filter(c => c !== el);
+  reposition() {
+    const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
+    const siblings = this.items.filter(c => c !== this.el);
     const before = captureRects(siblings);
-    const dragIdx = newOrder.indexOf(el);
-    const ref = newOrder.slice(dragIdx + 1).find(c => c !== el) ?? null;
-    /** @type {Node} */ (placeholder.parentNode).insertBefore(placeholder, ref);
-    newOrder.forEach((c, i) => indices.set(c, i));
-    flip(siblings, before, animating);
+    const dragIdx = newOrder.indexOf(this.el);
+    const ref = newOrder.slice(dragIdx + 1).find(c => c !== this.el) ?? null;
+    /** @type {Node} */ (this.placeholder.parentNode).insertBefore(this.placeholder, ref);
+    newOrder.forEach((c, i) => this.indices.set(c, i));
+    flip(siblings, before, this.animating);
   }
 
   /** @param {number} cx @param {number} cy */
-  function checkTransfer(cx, cy) {
-    if (hitTest(cx, cy, drag.activeInst.el)) return;
-    const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (opts.group)));
+  checkTransfer(cx, cy) {
+    if (hitTest(cx, cy, this.activeInst.el)) return;
+    const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (this.opts.group)));
     for (const other of group) {
-      if (other === drag.activeInst) continue;
-      if (hitTest(cx, cy, other.el)) { transfer(other, cy); return; }
+      if (other === this.activeInst) continue;
+      if (hitTest(cx, cy, other.el)) { this.transfer(other, cy); return; }
     }
   }
 
   /** @param {SortableInstance} target @param {number} cy */
-  function transfer(target, cy) {
-    const oldInst = drag.activeInst;
-    const siblings = drag.items.filter(c => c !== el);
+  transfer(target, cy) {
+    const oldInst = this.activeInst;
+    const siblings = this.items.filter(c => c !== this.el);
     const targetItems = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
-      .filter(c => c !== el);
+      .filter(c => c !== this.el);
 
     const oldRects = captureRects(siblings);
     const targetRects = captureRects(targetItems);
     const oldHeight = oldInst.el.getBoundingClientRect().height;
     const targetHeight = target.el.getBoundingClientRect().height;
 
-    placeholder.remove();
+    this.placeholder.remove();
     oldInst.el.classList.remove("sortable-active");
 
-    const insertIdx = insertPlaceholderAt(placeholder, target.el, targetItems, cy);
+    const insertIdx = insertPlaceholderAt(this.placeholder, target.el, targetItems, cy);
     target.el.classList.add("sortable-active");
 
-    drag.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== el);
-    drag.items.splice(insertIdx, 0, el);
-    indices.clear();
-    drag.items.forEach((c, i) => indices.set(c, i));
-    drag.startIndex = insertIdx;
-    drag.currentIndex = insertIdx;
-    drag.activeInst = target;
+    this.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== this.el);
+    this.items.splice(insertIdx, 0, this.el);
+    this.indices.clear();
+    this.items.forEach((c, i) => this.indices.set(c, i));
+    this.startIndex = insertIdx;
+    this.currentIndex = insertIdx;
+    this.activeInst = target;
 
-    flip(siblings, oldRects, animating);
-    flip(targetItems, targetRects, animating);
+    flip(siblings, oldRects, this.animating);
+    flip(targetItems, targetRects, this.animating);
     flipHeight(oldInst.el, oldHeight);
     flipHeight(target.el, targetHeight);
   }
 
-  function drop() {
-    drag.dropping = true;
-    const target = placeholder.getBoundingClientRect();
-    el.style.transition = "";
-    el.removeAttribute("data-dragging");
-    el.getClientRects();
-    el.style.transform = `translate3d(${target.left - box.left}px, ${target.top - box.top}px, 0)`;
+  drop() {
+    this.dropping = true;
+    const target = this.placeholder.getBoundingClientRect();
+    this.el.style.transition = "";
+    this.el.removeAttribute("data-dragging");
+    this.el.getClientRects();
+    this.el.style.transform = `translate3d(${target.left - this.box.left}px, ${target.top - this.box.top}px, 0)`;
 
     let done = false;
     const onSettle = () => {
       if (done) return;
       done = true;
 
-      settle(drag.items, placeholder, inst, drag.activeInst);
+      cleanupDrag(this.items, this.placeholder, this.inst, this.activeInst);
 
-      const crossContainer = drag.activeInst !== inst;
-      const from = crossContainer ? originalIndex : drag.startIndex;
-      const to = drag.currentIndex;
+      const crossContainer = this.activeInst !== this.inst;
+      const from = crossContainer ? this.originalIndex : this.startIndex;
+      const to = this.currentIndex;
 
-      if (crossContainer && opts.onTransfer) {
-        requestAnimationFrame(() => /** @type {Function} */ (opts.onTransfer)({
-          from, to, el, sourceContainer: inst, targetContainer: drag.activeInst,
+      if (crossContainer && this.opts.onTransfer) {
+        requestAnimationFrame(() => this.opts.onTransfer && this.opts.onTransfer({
+          from, to, el: this.el, sourceContainer: this.inst, targetContainer: this.activeInst,
         }));
-      } else if (!crossContainer && from !== to && opts.onReorder) {
-        requestAnimationFrame(() => /** @type {Function} */ (opts.onReorder)({ from, to }));
+      } else if (!crossContainer && from !== to && this.opts.onReorder) {
+        requestAnimationFrame(() => this.opts.onReorder && this.opts.onReorder({ from, to }));
       }
     };
 
-    el.addEventListener("transitionend", onSettle, { once: true });
-    setTimeout(onSettle, cssTransitionMs(el) + SETTLE_BUFFER_MS);
+    this.el.addEventListener("transitionend", onSettle, { once: true });
+    setTimeout(onSettle, cssTransitionMs(this.el) + SETTLE_BUFFER_MS);
   }
-
-  return { move, drop };
 }
 
 /**
@@ -517,7 +508,7 @@ export function sortable(container, userOpts = {}) {
   /** @type {Record<string, any>} */
   const meta = {};
 
-  /** @type {ReturnType<typeof createSession> | null} */
+  /** @type {DragSession | null} */
   let session = null;
 
   const ac = new AbortController();
@@ -566,7 +557,7 @@ export function sortable(container, userOpts = {}) {
         if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
             Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
         pending = false;
-        session = createSession(inst, /** @type {HTMLElement} */ (item), initialPos);
+        session = new DragSession(inst, /** @type {HTMLElement} */ (item), initialPos);
       }
       e.preventDefault();
       session?.move(pos);
