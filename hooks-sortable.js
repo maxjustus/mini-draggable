@@ -53,13 +53,13 @@ export function createUseSortable({ useEffect, useRef }) {
         onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) =>
           optsRef.current.onReorder?.(e),
         onTransfer: (/** @type {import('./sortable.js').TransferEvent} */ e) => {
-          const item = e.sourceContainer.meta.spliceOut?.(e.from);
-          if (item !== undefined) e.targetContainer.meta.spliceIn?.(e.to, item);
+          const item = e.sourceContainer.hooks.spliceOut?.(e.from);
+          if (item !== undefined) e.targetContainer.hooks.spliceIn?.(e.to, item);
           optsRef.current.onTransfer?.(e);
         },
       });
-      s.meta.spliceOut = (/** @type {number} */ i) => optsRef.current.spliceOut?.(i);
-      s.meta.spliceIn = (/** @type {number} */ i, /** @type {any} */ item) =>
+      s.hooks.spliceOut = (/** @type {number} */ i) => optsRef.current.spliceOut?.(i);
+      s.hooks.spliceIn = (/** @type {number} */ i, /** @type {any} */ item) =>
         optsRef.current.spliceIn?.(i, item);
       return () => s.destroy();
     }, []);

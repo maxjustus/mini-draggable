@@ -58,8 +58,8 @@ export default function AlpineSortable(Alpine) {
         },
         /** @param {import('./sortable.js').TransferEvent} evt */
         onTransfer({ from, to, sourceContainer, targetContainer }) {
-          const item = sourceContainer.meta.spliceOut?.(from);
-          if (item !== undefined) targetContainer.meta.spliceIn?.(to, item);
+          const item = sourceContainer.hooks.spliceOut?.(from);
+          if (item !== undefined) targetContainer.hooks.spliceIn?.(to, item);
           el.dispatchEvent(
             new CustomEvent("transfer", {
               detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
@@ -69,7 +69,7 @@ export default function AlpineSortable(Alpine) {
         },
       });
 
-      d.meta = { spliceOut, spliceIn };
+      d.hooks = { spliceOut, spliceIn };
       cleanup(() => d.destroy());
     },
   );

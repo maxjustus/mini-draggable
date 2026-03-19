@@ -55,7 +55,7 @@
  * @typedef {{
  *   el: HTMLElement,
  *   opts: Opts,
- *   meta: Record<string, any>,
+ *   hooks: Record<string, any>,
  *   destroy: () => void,
  * }} SortableInstance
  */
@@ -83,7 +83,6 @@ const LIFTED_STYLE_PROPS = /** @type {const} */ ([
   "width",
   "height",
 ]);
-
 
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
@@ -314,7 +313,6 @@ function flipHeight(container, firstHeight) {
   container.addEventListener("transitionend", cleanup, { once: true });
   setTimeout(cleanup, cssTransitionMs(container));
 }
-
 
 /**
  * Lift an element out of normal flow into a fixed position at its current
@@ -783,13 +781,12 @@ class DragSession {
     document.body.style.userSelect = "";
     /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";
-
   }
 }
 
 /**
  * Make a container's children sortable via drag-and-drop.
- * Returns a handle with `el`, `opts`, `meta`, and `destroy()`.
+ * Returns a handle with `el`, `opts`, `hooks`, and `destroy()`.
  * @param {HTMLElement} container
  * @param {SortableOptions} [userOpts]
  * @returns {SortableInstance}
@@ -804,7 +801,11 @@ export function sortable(container, userOpts = {}) {
   const opts = { ...DEFAULTS, ...userOpts };
 
   /** @type {Record<string, any>} */
-  const meta = {};
+  // Framework wrappers attach spliceOut/spliceIn functions here.
+  // During cross-container transfer, onTransfer reaches into
+  // sourceContainer.hooks.spliceOut(from) and targetContainer.hooks.spliceIn(to, item).
+  /** @type {Record<string, any>} */
+  const hooks = {};
 
   /** @type {DragSession | null} */
   let session = null;
@@ -825,7 +826,7 @@ export function sortable(container, userOpts = {}) {
   const inst = {
     el: container,
     opts,
-    meta,
+    hooks,
     destroy() {
       ac.abort();
       initialized.delete(container);
