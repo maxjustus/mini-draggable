@@ -17,9 +17,27 @@
 
 /**
  * @typedef {{x: number, y: number}} Point
+ *
  * @typedef {{from: number, to: number}} ReorderEvent
- * @typedef {{from: number, to: number, el: HTMLElement, sourceContainer: SortableInstance, targetContainer: SortableInstance}} TransferEvent
- * @typedef {{scrollBy: (x: number, y: number) => void, scrollX: number, scrollY: number, scrollWidth: number, scrollHeight: number, width: number, height: number}} ScrollTarget
+ *
+ * @typedef {{
+ *   from: number,
+ *   to: number,
+ *   el: HTMLElement,
+ *   sourceContainer: SortableInstance,
+ *   targetContainer: SortableInstance,
+ * }} TransferEvent
+ *
+ * @typedef {{
+ *   scrollBy: (x: number, y: number) => void,
+ *   scrollX: number,
+ *   scrollY: number,
+ *   scrollWidth: number,
+ *   scrollHeight: number,
+ *   width: number,
+ *   height: number,
+ * }} ScrollTarget
+ *
  * @typedef {{
  *   items?: string,
  *   handle?: string | null,
@@ -31,8 +49,15 @@
  *   touchClickDelay?: number,
  *   scrollThreshold?: number,
  * }} SortableOptions
+ *
  * @typedef {Required<SortableOptions>} Opts
- * @typedef {{el: HTMLElement, opts: Opts, meta: Record<string, any>, destroy: () => void}} SortableInstance
+ *
+ * @typedef {{
+ *   el: HTMLElement,
+ *   opts: Opts,
+ *   meta: Record<string, any>,
+ *   destroy: () => void,
+ * }} SortableInstance
  */
 
 /** @type {Opts} */
@@ -48,21 +73,33 @@ const DEFAULTS = {
   scrollThreshold: 150,
 };
 
-const STYLE_PROPS = /** @type {const} */ (["transform", "transition", "position", "zIndex", "top", "left", "width", "height"]);
+const LIFTED_STYLE_PROPS = /** @type {const} */ ([
+  "transform", "transition", "position", "zIndex",
+  "top", "left", "width", "height",
+]);
 const SETTLE_BUFFER_MS = 50;
 
 /** @type {Map<string, Set<SortableInstance>>} */
 const groups = new Map();
+
 /** @type {WeakSet<HTMLElement>} */
 const initialized = new WeakSet();
 
-/** @param {MouseEvent | TouchEvent} e @returns {Point} */
-function pointerPos(e) {
-  if ("touches" in e) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  return { x: e.clientX, y: e.clientY };
+
+/**
+ * Extract pointer coordinates from a mouse or touch event.
+ * @param {MouseEvent | TouchEvent} event
+ * @returns {Point}
+ */
+function pointerPos(event) {
+  if ("touches" in event) {
+    return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  }
+  return { x: event.clientX, y: event.clientY };
 }
 
 /**
+ * Move an element within an array from one index to another (mutates).
  * @template T
  * @param {T[]} arr
  * @param {number} from
@@ -74,48 +111,74 @@ export function arrMove(arr, from, to) {
   return arr;
 }
 
-/** @param {number} x @param {number} y @param {HTMLElement} el @returns {boolean} */
+/**
+ * Check if a point (x, y) is inside an element's bounding rect.
+ * @param {number} x
+ * @param {number} y
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
 function hitTest(x, y, el) {
-  const r = el.getBoundingClientRect();
-  return x > r.left && x < r.right && y > r.top && y < r.bottom;
+  const rect = el.getBoundingClientRect();
+  return x > rect.left && x < rect.right && y > rect.top && y < rect.bottom;
 }
 
-/** @param {HTMLElement[]} items @returns {Map<HTMLElement, DOMRect>} */
+/**
+ * Snapshot bounding rects for a list of elements.
+ * @param {HTMLElement[]} items
+ * @returns {Map<HTMLElement, DOMRect>}
+ */
 function captureRects(items) {
   /** @type {Map<HTMLElement, DOMRect>} */
-  const m = new Map();
-  for (const el of items) m.set(el, el.getBoundingClientRect());
-  return m;
+  const rects = new Map();
+  for (const el of items) {
+    rects.set(el, el.getBoundingClientRect());
+  }
+  return rects;
 }
 
-/** @param {HTMLElement} el @returns {number} */
+/**
+ * Read the CSS-defined transition duration for an element (in ms).
+ * @param {HTMLElement} el
+ * @returns {number}
+ */
 function cssTransitionMs(el) {
   const raw = getComputedStyle(el).transitionDuration;
   return raw ? parseFloat(raw) * 1000 : 0;
 }
 
-/** @param {HTMLElement} el @returns {HTMLElement | null} */
+/**
+ * Walk up the DOM to find the nearest scrollable ancestor.
+ * @param {HTMLElement} el
+ * @returns {HTMLElement | null}
+ */
 function findScrollParent(el) {
   /** @type {HTMLElement | null} */
-  let n = el;
-  while (n) {
-    if (/scroll|auto/.test(getComputedStyle(n).overflow)) return n;
-    n = n.parentElement;
+  let node = el;
+  while (node) {
+    if (/scroll|auto/.test(getComputedStyle(node).overflow)) return node;
+    node = node.parentElement;
   }
   return null;
 }
 
-/** @param {HTMLElement | null} el @returns {ScrollTarget} */
+/**
+ * Build a scroll-target adapter for either a scrollable element or the window.
+ * @param {HTMLElement | null} el
+ * @returns {ScrollTarget}
+ */
 function buildScrollTarget(el) {
-  if (el) return {
-    scrollBy(x, y) { el.scrollTop += y; el.scrollLeft += x; },
-    get scrollX() { return el.scrollLeft; },
-    get scrollY() { return el.scrollTop; },
-    get scrollWidth() { return el.scrollWidth; },
-    get scrollHeight() { return el.scrollHeight; },
-    get width() { return el.getBoundingClientRect().width; },
-    get height() { return el.getBoundingClientRect().height; },
-  };
+  if (el) {
+    return {
+      scrollBy(x, y) { el.scrollTop += y; el.scrollLeft += x; },
+      get scrollX() { return el.scrollLeft; },
+      get scrollY() { return el.scrollTop; },
+      get scrollWidth() { return el.scrollWidth; },
+      get scrollHeight() { return el.scrollHeight; },
+      get width() { return el.getBoundingClientRect().width; },
+      get height() { return el.getBoundingClientRect().height; },
+    };
+  }
 
   return {
     scrollBy(x, y) { window.scrollBy(x, y); },
@@ -128,41 +191,66 @@ function buildScrollTarget(el) {
   };
 }
 
-/** @param {HTMLElement} src @returns {HTMLElement} */
-function createPlaceholder(src) {
-  const ph = /** @type {HTMLElement} */ (document.createElement(src.tagName));
-  ph.className = src.className;
-  ph.setAttribute("data-drag-placeholder", "");
-  const cs = getComputedStyle(src);
-  ph.style.cssText = [
-    `width:${cs.width}`, `height:${cs.height}`,
-    `min-width:${cs.minWidth}`, `min-height:${cs.minHeight}`,
-    `margin:${cs.margin}`, `padding:${cs.padding}`, `box-sizing:${cs.boxSizing}`,
-    `grid-column:${cs.gridColumn}`, `grid-row:${cs.gridRow}`, `grid-area:${cs.gridArea}`,
-    `flex-grow:${cs.flexGrow}`, `flex-shrink:${cs.flexShrink}`, `flex-basis:${cs.flexBasis}`,
-    `align-self:${cs.alignSelf}`,
-    "pointer-events:none",
-  ].join(";");
-  ph.textContent = "";
-  return ph;
+/**
+ * Create a placeholder element that occupies the same layout space as the source.
+ * Copies computed dimensions, margins, grid/flex properties.
+ * @param {HTMLElement} source
+ * @returns {HTMLElement}
+ */
+function createPlaceholder(source) {
+  const placeholder = /** @type {HTMLElement} */ (document.createElement(source.tagName));
+  placeholder.className = source.className;
+  placeholder.setAttribute("data-drag-placeholder", "");
+  placeholder.textContent = "";
+
+  const style = getComputedStyle(source);
+  placeholder.style.width = style.width;
+  placeholder.style.height = style.height;
+  placeholder.style.minWidth = style.minWidth;
+  placeholder.style.minHeight = style.minHeight;
+  placeholder.style.margin = style.margin;
+  placeholder.style.padding = style.padding;
+  placeholder.style.boxSizing = style.boxSizing;
+  placeholder.style.gridColumn = style.gridColumn;
+  placeholder.style.gridRow = style.gridRow;
+  placeholder.style.gridArea = style.gridArea;
+  placeholder.style.flexGrow = style.flexGrow;
+  placeholder.style.flexShrink = style.flexShrink;
+  placeholder.style.flexBasis = style.flexBasis;
+  placeholder.style.alignSelf = style.alignSelf;
+  placeholder.style.pointerEvents = "none";
+
+  return placeholder;
 }
 
-/** @param {HTMLElement[]} items @param {Map<HTMLElement, DOMRect>} before @param {Set<HTMLElement>} animating */
-function flip(items, before, animating) {
+/**
+ * Animate items from their old positions to their new positions using FLIP.
+ * Items are added to the `animating` set during the transition to prevent
+ * re-triggering swaps while they're in flight.
+ * @param {HTMLElement[]} items
+ * @param {Map<HTMLElement, DOMRect>} beforeRects
+ * @param {Set<HTMLElement>} animating
+ */
+function flip(items, beforeRects, animating) {
   for (const child of items) {
-    const first = before.get(child);
+    const first = beforeRects.get(child);
     if (!first) continue;
+
     const last = child.getBoundingClientRect();
     const dx = first.left - last.left;
     const dy = first.top - last.top;
     if (dx === 0 && dy === 0) continue;
 
+    // Set initial offset (no transition)
     child.style.transition = "none";
     child.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+
+    // Force reflow, then animate to final position
     child.getClientRects();
     child.style.transition = "";
     child.style.transform = "none";
 
+    // Track animation state for hit-test suppression
     animating.add(child);
     const done = () => animating.delete(child);
     child.addEventListener("transitionend", done, { once: true });
@@ -170,89 +258,151 @@ function flip(items, before, animating) {
   }
 }
 
-/** @param {HTMLElement} container @param {number} firstHeight */
+/**
+ * Animate a container's height change using FLIP.
+ * @param {HTMLElement} container
+ * @param {number} firstHeight
+ */
 function flipHeight(container, firstHeight) {
   const lastHeight = container.getBoundingClientRect().height;
   if (firstHeight === lastHeight) return;
+
   container.style.height = `${firstHeight}px`;
   container.style.transition = "none";
   container.getClientRects();
   container.style.transition = "";
   container.style.height = `${lastHeight}px`;
-  const cleanup = () => { container.style.height = ""; container.style.transition = ""; };
+
+  const cleanup = () => {
+    container.style.height = "";
+    container.style.transition = "";
+  };
   container.addEventListener("transitionend", cleanup, { once: true });
   setTimeout(cleanup, cssTransitionMs(container) + SETTLE_BUFFER_MS);
 }
 
-// Safari workaround: toggling will-change forces a compositing layer
-// rebuild to fix hit-test desync after scroll + transform.
-/** @param {HTMLElement} container @param {string} selector */
+/**
+ * Safari workaround: toggling will-change forces a compositing layer
+ * rebuild to fix hit-test desync after scroll + transform.
+ * @param {HTMLElement} container
+ * @param {string} selector
+ */
 function repaint(container, selector) {
   const items = /** @type {NodeListOf<HTMLElement>} */ (container.querySelectorAll(selector));
-  for (const c of items) c.style.willChange = "transform";
-  requestAnimationFrame(() => { for (const c of items) c.style.willChange = ""; });
-}
-
-/** @param {HTMLElement} el @param {DOMRect} box */
-function liftElement(el, box) {
-  Object.assign(el.style, {
-    position: "fixed", zIndex: "10000",
-    top: `${box.top}px`, left: `${box.left}px`,
-    width: `${box.width}px`, height: `${box.height}px`,
-    transition: "none", transform: "translate3d(0, 0, 0)",
+  for (const child of items) child.style.willChange = "transform";
+  requestAnimationFrame(() => {
+    for (const child of items) child.style.willChange = "";
   });
 }
 
+/**
+ * Lift an element out of normal flow into a fixed position at its current
+ * visual location. Used at drag start to float the dragged item.
+ * @param {HTMLElement} el
+ * @param {DOMRect} box
+ */
+function liftElement(el, box) {
+  el.style.position = "fixed";
+  el.style.zIndex = "10000";
+  el.style.top = `${box.top}px`;
+  el.style.left = `${box.left}px`;
+  el.style.width = `${box.width}px`;
+  el.style.height = `${box.height}px`;
+  el.style.transition = "none";
+  el.style.transform = "translate3d(0, 0, 0)";
+}
 
 /**
- * @param {{scrollEl: HTMLElement | null, target: ScrollTarget, threshold: number, getPointer: () => Point, isActive: () => boolean, onTick: () => void}} cfg
+ * Create an auto-scroller that scrolls a container (or the window) when
+ * the pointer is near its edges during a drag.
+ * @param {{
+ *   scrollEl: HTMLElement | null,
+ *   target: ScrollTarget,
+ *   threshold: number,
+ *   getPointer: () => Point,
+ *   isActive: () => boolean,
+ *   onTick: () => void,
+ * }} config
  * @returns {{start: () => void}}
  */
-function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isActive, onTick }) {
+function createAutoScroller({ scrollEl, target: scrollTarget, threshold, getPointer, isActive, onTick }) {
   let scrolling = false;
 
-  /** @param {Point} p @returns {{top: number, right: number, bottom: number, left: number}} */
-  function edgeDist(p) {
+  /**
+   * @param {Point} pointer
+   * @returns {{top: number, right: number, bottom: number, left: number}}
+   */
+  function edgeDistances(pointer) {
     if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { top: p.y - r.top, right: r.right - p.x, bottom: r.bottom - p.y, left: p.x - r.left };
+      const rect = scrollEl.getBoundingClientRect();
+      return {
+        top: pointer.y - rect.top,
+        right: rect.right - pointer.x,
+        bottom: rect.bottom - pointer.y,
+        left: pointer.x - rect.left,
+      };
     }
-    return { top: p.y, right: innerWidth - p.x, bottom: innerHeight - p.y, left: p.x };
+    return {
+      top: pointer.y,
+      right: innerWidth - pointer.x,
+      bottom: innerHeight - pointer.y,
+      left: pointer.x,
+    };
   }
 
   /** @returns {{x: number, y: number}} */
-  function thresh() {
+  function scrollThresholds() {
     if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { x: Math.min(r.width * 0.25, threshold), y: Math.min(r.height * 0.25, threshold) };
+      const rect = scrollEl.getBoundingClientRect();
+      return {
+        x: Math.min(rect.width * 0.25, threshold),
+        y: Math.min(rect.height * 0.25, threshold),
+      };
     }
     return { x: threshold, y: threshold };
   }
 
-  /** @param {{top: number, right: number, bottom: number, left: number}} d @param {{x: number, y: number}} t @returns {boolean} */
-  function shouldScroll(d, t) {
-    return (d.top < t.y && st.scrollY > 0) ||
-           (d.right < t.x && st.scrollX + st.width < st.scrollWidth) ||
-           (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) ||
-           (d.left < t.x && st.scrollX > 0);
+  /**
+   * @param {{top: number, right: number, bottom: number, left: number}} dist
+   * @param {{x: number, y: number}} thresh
+   * @returns {boolean}
+   */
+  function shouldScroll(dist, thresh) {
+    return (dist.top < thresh.y && scrollTarget.scrollY > 0) ||
+           (dist.right < thresh.x && scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth) ||
+           (dist.bottom < thresh.y && scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight) ||
+           (dist.left < thresh.x && scrollTarget.scrollX > 0);
   }
 
   function loop() {
-    if (!isActive() || !scrolling) { scrolling = false; return; }
+    if (!isActive() || !scrolling) {
+      scrolling = false;
+      return;
+    }
     requestAnimationFrame(loop);
-    const d = edgeDist(getPointer());
-    const t = thresh();
-    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -(2 ** ((t.y - d.top) / 28)));
-    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(2 ** ((t.x - d.right) / 28), 0);
-    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, 2 ** ((t.y - d.bottom) / 28));
-    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-(2 ** ((t.x - d.left) / 28)), 0);
+
+    const dist = edgeDistances(getPointer());
+    const thresh = scrollThresholds();
+
+    if (dist.top < thresh.y && scrollTarget.scrollY > 0)
+      scrollTarget.scrollBy(0, -(2 ** ((thresh.y - dist.top) / 28)));
+
+    if (dist.right < thresh.x && scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth)
+      scrollTarget.scrollBy(2 ** ((thresh.x - dist.right) / 28), 0);
+
+    if (dist.bottom < thresh.y && scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight)
+      scrollTarget.scrollBy(0, 2 ** ((thresh.y - dist.bottom) / 28));
+
+    if (dist.left < thresh.x && scrollTarget.scrollX > 0)
+      scrollTarget.scrollBy(-(2 ** ((thresh.x - dist.left) / 28)), 0);
+
     onTick();
   }
 
   return {
     start() {
       if (scrolling) return;
-      if (shouldScroll(edgeDist(getPointer()), thresh())) {
+      if (shouldScroll(edgeDistances(getPointer()), scrollThresholds())) {
         scrolling = true;
         requestAnimationFrame(loop);
       }
@@ -261,39 +411,58 @@ function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isAct
 }
 
 /**
+ * Insert a placeholder into a container at the vertical position closest
+ * to the given y-coordinate.
  * @param {HTMLElement} placeholder
  * @param {HTMLElement} container
  * @param {HTMLElement[]} items
  * @param {number} cy
- * @returns {number}
+ * @returns {number} the insertion index
  */
 function insertPlaceholderAt(placeholder, container, items, cy) {
-  const found = items.findIndex(c => { const r = c.getBoundingClientRect(); return cy < r.top + r.height / 2; });
+  const found = items.findIndex(child => {
+    const rect = child.getBoundingClientRect();
+    return cy < rect.top + rect.height / 2;
+  });
   const idx = found === -1 ? items.length : found;
+
   if (idx >= items.length) container.appendChild(placeholder);
   else container.insertBefore(placeholder, items[idx]);
+
   return idx;
 }
 
 /**
- * @param {MouseEvent | TouchEvent} e
+ * Validate a pointer event as a valid drag start. Returns the target
+ * sortable item, or null if the event should be ignored.
+ * @param {MouseEvent | TouchEvent} event
  * @param {HTMLElement} container
  * @param {Opts} opts
  * @returns {HTMLElement | null}
  */
-function validateDragTarget(e, container, opts) {
-  const target = /** @type {HTMLElement} */ (e.target);
+function validateDragTarget(event, container, opts) {
+  const target = /** @type {HTMLElement} */ (event.target);
   const item = /** @type {HTMLElement | null} */ (target.closest(opts.items));
+
   if (!item || !container.contains(item)) return null;
   if (opts.disabled?.(item)) return null;
+
   if (opts.handle && item.querySelector(opts.handle)) {
     const handle = target.closest(opts.handle);
     if (!handle || !item.contains(handle)) return null;
   }
-  if ("button" in e && e.button !== 0) return null;
+
+  if ("button" in event && event.button !== 0) return null;
+
   return item;
 }
 
+
+/**
+ * Short-lived drag session. Created when the drag threshold is crossed,
+ * discarded after the drop animation settles. All drag state lives here
+ * as explicit instance properties.
+ */
 class DragSession {
   /**
    * @param {SortableInstance} inst
@@ -306,47 +475,62 @@ class DragSession {
     this.initialPos = initialPos;
     this.box = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
+
     /** @type {Set<HTMLElement>} */
     this.animating = new Set();
-    this.items = /** @type {HTMLElement[]} */ ([...inst.el.querySelectorAll(this.inst.opts.items)]);
+
+    this.items = /** @type {HTMLElement[]} */ (
+      [...inst.el.querySelectorAll(inst.opts.items)]
+    );
     this.originalIndex = this.items.indexOf(el);
     this.startIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
     this.pointer = initialPos;
+
     /** @type {SortableInstance} */
     this.activeInst = inst;
     this.dropping = false;
     this.indexDirty = false;
 
-    // Visual position tracking — diverges from DOM order after each reposition
+    // Visual position tracking — diverges from DOM order after each
+    // reposition. items.indexOf() would return stale original positions.
     /** @type {Map<HTMLElement, number>} */
     this.indices = new Map();
-    this.items.forEach((c, i) => this.indices.set(c, i));
+    this.items.forEach((child, i) => this.indices.set(child, i));
 
-    // Exclusion zone: suppress swaps while dragged center is inside the
-    // last-swapped target's pre-swap rect (prevents grid oscillation)
+    // Exclusion zone: after a swap, suppress further swaps while the
+    // dragged element's center stays inside the swapped target's
+    // pre-swap rect. Prevents oscillation in grid layouts.
     /** @type {DOMRect | null} */
     this.exclusionZone = null;
 
+    // Insert placeholder and lift element into fixed positioning
     /** @type {Node} */ (el.parentNode).insertBefore(this.placeholder, el);
     liftElement(el, this.box);
+
+    // Activate drag state
     el.setAttribute("data-dragging", "");
     inst.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
     /** @type {any} */ (document.body.style).webkitUserSelect = "none";
     document.body.style.cursor = "grabbing";
 
+    // Set up auto-scroller
     const scrollEl = findScrollParent(inst.el);
     this.scroller = createAutoScroller({
       scrollEl,
       target: buildScrollTarget(scrollEl),
-      threshold: this.inst.opts.scrollThreshold,
+      threshold: inst.opts.scrollThreshold,
       getPointer: () => this.pointer,
       isActive: () => !this.dropping,
       onTick: () => this.scheduleUpdate(),
     });
   }
 
+  /**
+   * Debounce index updates to one per animation frame. Both move() and
+   * the auto-scroller's onTick route through here.
+   */
   scheduleUpdate() {
     if (this.indexDirty) return;
     this.indexDirty = true;
@@ -357,29 +541,44 @@ class DragSession {
     });
   }
 
-  /** @param {Point} pos */
+  /**
+   * Called on every pointer move during drag. Updates the floating
+   * element's position and schedules an index check.
+   * @param {Point} pos
+   */
   move(pos) {
     if (this.dropping) return;
     this.pointer = pos;
-    this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
+    const dx = pos.x - this.initialPos.x;
+    const dy = pos.y - this.initialPos.y;
+    this.el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
     this.scheduleUpdate();
   }
 
+  /**
+   * Check if the dragged element's center overlaps a sibling. If so,
+   * reposition the placeholder. Respects the exclusion zone and the
+   * animating set.
+   */
   updateIndex() {
     if (this.dropping) return;
 
-    const r = this.el.getBoundingClientRect();
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
+    const rect = this.el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
 
+    // Stay inside the exclusion zone — no swaps until the cursor leaves
     if (this.exclusionZone) {
       if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
-          cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return;
+          cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) {
+        return;
+      }
       this.exclusionZone = null;
     }
 
     for (const child of this.items) {
       if (child === this.el || this.animating.has(child)) continue;
+
       if (hitTest(cx, cy, child)) {
         const idx = /** @type {number} */ (this.indices.get(child));
         if (idx !== this.currentIndex) {
@@ -390,68 +589,105 @@ class DragSession {
         return;
       }
     }
+
     if (this.inst.opts.group) this.checkTransfer(cx, cy);
   }
 
+  /**
+   * Move the placeholder to reflect the current drag position within the
+   * same container. FLIP-animates siblings.
+   */
   reposition() {
     const newOrder = arrMove([...this.items], this.startIndex, this.currentIndex);
-    const siblings = this.items.filter(c => c !== this.el);
-    const before = captureRects(siblings);
+    const siblings = this.items.filter(child => child !== this.el);
+    const beforeRects = captureRects(siblings);
+
+    // Find the next sibling after the dragged element in the new order
     const dragIdx = newOrder.indexOf(this.el);
-    const ref = newOrder.slice(dragIdx + 1).find(c => c !== this.el) ?? null;
+    const ref = newOrder.slice(dragIdx + 1).find(child => child !== this.el) ?? null;
+
     /** @type {Node} */ (this.placeholder.parentNode).insertBefore(this.placeholder, ref);
-    newOrder.forEach((c, i) => this.indices.set(c, i));
-    flip(siblings, before, this.animating);
+    newOrder.forEach((child, i) => this.indices.set(child, i));
+    flip(siblings, beforeRects, this.animating);
   }
 
-  /** @param {number} cx @param {number} cy */
+  /**
+   * Check if the dragged element has left its current container and
+   * entered another container in the same group.
+   * @param {number} cx
+   * @param {number} cy
+   */
   checkTransfer(cx, cy) {
     if (hitTest(cx, cy, this.activeInst.el)) return;
-    const group = /** @type {Set<SortableInstance>} */ (groups.get(/** @type {string} */ (this.inst.opts.group)));
+
+    const group = /** @type {Set<SortableInstance>} */ (
+      groups.get(/** @type {string} */ (this.inst.opts.group))
+    );
     for (const other of group) {
       if (other === this.activeInst) continue;
-      if (hitTest(cx, cy, other.el)) { this.transfer(other, cy); return; }
+      if (hitTest(cx, cy, other.el)) {
+        this.transfer(other, cy);
+        return;
+      }
     }
   }
 
-  /** @param {SortableInstance} target @param {number} cy */
+  /**
+   * Transfer the dragged element from the current container to a
+   * different container in the same group.
+   * @param {SortableInstance} target
+   * @param {number} cy
+   */
   transfer(target, cy) {
     const oldInst = this.activeInst;
-    const siblings = this.items.filter(c => c !== this.el);
-    const targetItems = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)])
-      .filter(c => c !== this.el);
+    const siblings = this.items.filter(child => child !== this.el);
+    const targetItems = /** @type {HTMLElement[]} */ (
+      [...target.el.querySelectorAll(target.opts.items)]
+    ).filter(child => child !== this.el);
 
+    // Capture pre-transfer state for FLIP
     const oldRects = captureRects(siblings);
     const targetRects = captureRects(targetItems);
     const oldHeight = oldInst.el.getBoundingClientRect().height;
     const targetHeight = target.el.getBoundingClientRect().height;
 
+    // Move placeholder to target container
     this.placeholder.remove();
     oldInst.el.classList.remove("sortable-active");
-
     const insertIdx = insertPlaceholderAt(this.placeholder, target.el, targetItems, cy);
     target.el.classList.add("sortable-active");
 
-    this.items = /** @type {HTMLElement[]} */ ([...target.el.querySelectorAll(target.opts.items)]).filter(c => c !== this.el);
+    // Rebuild tracking for the new container
+    this.items = /** @type {HTMLElement[]} */ (
+      [...target.el.querySelectorAll(target.opts.items)]
+    ).filter(child => child !== this.el);
     this.items.splice(insertIdx, 0, this.el);
+
     this.indices.clear();
-    this.items.forEach((c, i) => this.indices.set(c, i));
+    this.items.forEach((child, i) => this.indices.set(child, i));
+
     this.startIndex = insertIdx;
     this.currentIndex = insertIdx;
     this.activeInst = target;
 
+    // Animate both containers
     flip(siblings, oldRects, this.animating);
     flip(targetItems, targetRects, this.animating);
     flipHeight(oldInst.el, oldHeight);
     flipHeight(target.el, targetHeight);
   }
 
+  /**
+   * Begin the drop animation. The element slides to the placeholder
+   * position, then settle() fires to clean up and dispatch callbacks.
+   */
   drop() {
     this.dropping = true;
+
     const target = this.placeholder.getBoundingClientRect();
     this.el.style.transition = "";
     this.el.removeAttribute("data-dragging");
-    this.el.getClientRects();
+    this.el.getClientRects(); // reflow: lock in position before animating
     this.el.style.transform = `translate3d(${target.left - this.box.left}px, ${target.top - this.box.top}px, 0)`;
 
     let done = false;
@@ -478,33 +714,51 @@ class DragSession {
     setTimeout(onSettle, cssTransitionMs(this.el) + SETTLE_BUFFER_MS);
   }
 
+  /**
+   * Remove the placeholder, clear all inline styles set during drag,
+   * and restore body/container state.
+   */
   cleanup() {
     this.placeholder.remove();
+
     for (const child of this.items) {
-      for (const p of STYLE_PROPS) /** @type {any} */ (child.style)[p] = "";
+      for (const prop of LIFTED_STYLE_PROPS) {
+        /** @type {any} */ (child.style)[prop] = "";
+      }
       child.removeAttribute("data-dragging");
     }
+
     this.activeInst.el.classList.remove("sortable-active");
     this.inst.el.classList.remove("sortable-active");
+
     document.body.style.userSelect = "";
     /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";
+
     repaint(this.inst.el, this.inst.opts.items);
-    if (this.activeInst !== this.inst) repaint(this.activeInst.el, this.inst.opts.items);
+    if (this.activeInst !== this.inst) {
+      repaint(this.activeInst.el, this.inst.opts.items);
+    }
   }
 }
 
+
 /**
+ * Make a container's children sortable via drag-and-drop.
+ * Returns a handle with `el`, `opts`, `meta`, and `destroy()`.
  * @param {HTMLElement} container
  * @param {SortableOptions} [userOpts]
  * @returns {SortableInstance}
  */
 export function sortable(container, userOpts = {}) {
-  if (initialized.has(container)) throw new Error("sortable() already called on this element");
+  if (initialized.has(container)) {
+    throw new Error("sortable() already called on this element");
+  }
   initialized.add(container);
 
   /** @type {Opts} */
   const opts = { ...DEFAULTS, ...userOpts };
+
   /** @type {Record<string, any>} */
   const meta = {};
 
@@ -513,8 +767,15 @@ export function sortable(container, userOpts = {}) {
 
   const ac = new AbortController();
   const sig = ac.signal;
-  /** @param {EventTarget} t @param {string} evt @param {EventListener} fn @param {AddEventListenerOptions} [o] */
-  const on = (t, evt, fn, o) => t.addEventListener(evt, fn, { signal: sig, ...o });
+
+  /**
+   * @param {EventTarget} target
+   * @param {string} event
+   * @param {EventListener} handler
+   * @param {AddEventListenerOptions} [options]
+   */
+  const on = (target, event, handler, options) =>
+    target.addEventListener(event, handler, { signal: sig, ...options });
 
   /** @type {SortableInstance} */
   const inst = {
@@ -528,38 +789,49 @@ export function sortable(container, userOpts = {}) {
     },
   };
 
+  // Register in group for cross-container transfer
   if (opts.group) {
     if (!groups.has(opts.group)) groups.set(opts.group, new Set());
     /** @type {Set<SortableInstance>} */ (groups.get(opts.group)).add(inst);
   }
 
-  /** @param {MouseEvent | TouchEvent} e */
-  function onPointerDown(e) {
+  /** @param {MouseEvent | TouchEvent} event */
+  function onPointerDown(event) {
     if (session) return;
-    const item = validateDragTarget(e, container, opts);
+
+    const item = validateDragTarget(event, container, opts);
     if (!item) return;
 
-    if (e.type === "touchstart") {
-      e.preventDefault();
-      const target = /** @type {HTMLElement} */ (e.target);
+    // On touch, prevent default and fire a synthetic click if the drag
+    // threshold isn't crossed (so taps still work).
+    if (event.type === "touchstart") {
+      event.preventDefault();
+      const target = /** @type {HTMLElement} */ (event.target);
       setTimeout(() => {
-        if (!session) target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        if (!session) {
+          target.dispatchEvent(new MouseEvent("click", {
+            bubbles: true, cancelable: true, view: window,
+          }));
+        }
       }, opts.touchClickDelay);
     }
 
-    const initialPos = pointerPos(e);
+    const initialPos = pointerPos(event);
     let pending = true;
 
-    /** @param {MouseEvent | TouchEvent} e */
-    function onMove(e) {
-      const pos = pointerPos(e);
+    /** @param {MouseEvent | TouchEvent} event */
+    function onMove(event) {
+      const pos = pointerPos(event);
+
       if (pending) {
-        if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
-            Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
+        const dx = Math.abs(pos.x - initialPos.x);
+        const dy = Math.abs(pos.y - initialPos.y);
+        if (dx < opts.dragThreshold && dy < opts.dragThreshold) return;
         pending = false;
         session = new DragSession(inst, /** @type {HTMLElement} */ (item), initialPos);
       }
-      e.preventDefault();
+
+      event.preventDefault();
       session?.move(pos);
     }
 
@@ -572,9 +844,11 @@ export function sortable(container, userOpts = {}) {
       pending = false;
     }
 
+    // Per-drag listeners: cleaned up on pointer-up or instance destroy
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
+
     window.addEventListener("mousemove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
     window.addEventListener("touchmove", /** @type {EventListener} */ (onMove), { passive: false, signal: dragSig });
     window.addEventListener("mouseup", onUp, { signal: dragSig });
@@ -584,8 +858,8 @@ export function sortable(container, userOpts = {}) {
 
   on(container, "mousedown", /** @type {EventListener} */ (onPointerDown));
   on(container, "touchstart", /** @type {EventListener} */ (onPointerDown), { passive: false });
-  on(window, "selectstart", (e) => { if (session) e.preventDefault(); });
-  on(window, "dragstart", (e) => { if (session) e.preventDefault(); });
+  on(window, "selectstart", (event) => { if (session) event.preventDefault(); });
+  on(window, "dragstart", (event) => { if (session) event.preventDefault(); });
 
   return inst;
 }
