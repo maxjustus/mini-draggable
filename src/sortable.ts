@@ -148,6 +148,7 @@ function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, anim
     if (dx === 0 && dy === 0) continue;
 
     animating.add(child);
+    child.getAnimations().forEach((a) => a.cancel());
     child.animate(
       [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }],
       { duration: durationMs, easing: "ease" },

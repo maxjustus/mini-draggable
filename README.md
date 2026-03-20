@@ -102,9 +102,9 @@ The library applies attributes and classes during drag but injects no CSS. Add y
 **Quick-start CSS** -- FLIP animation, placeholder, and drag cursor:
 
 ```css
-/* FLIP animation for item reordering */
+/* Prevent touch scrolling on sortable items */
 [data-sortable] {
-  transition: transform 150ms;
+  touch-action: none;
 }
 
 /* Placeholder -- the gap left by the dragged item */

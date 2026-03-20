@@ -1,6 +1,6 @@
 /* Sortable — FLIP animation */
 [data-sortable] {
-  transition: transform 150ms;
+  touch-action: none;
 }
 
 /* Sortable drag feedback */
