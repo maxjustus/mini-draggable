@@ -72,7 +72,7 @@ const DEFAULTS = {
   scrollThreshold: 150,
 };
 
-const LIFTED_STYLE_PROPS = /** @type {const} */ ([
+const MANAGED_STYLE_PROPS = /** @type {const} */ ([
   "transform",
   "transition",
   "position",
@@ -507,7 +507,7 @@ class DragSession {
     this.inst = inst;
     this.el = el;
     this.initialPos = initialPos;
-    this.box = el.getBoundingClientRect();
+    this.initialRect = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
 
     /** @type {Set<HTMLElement>} */
@@ -538,7 +538,7 @@ class DragSession {
 
     // Insert placeholder and lift element into fixed positioning
     /** @type {Node} */ (el.parentNode).insertBefore(this.placeholder, el);
-    liftElement(el, this.box);
+    liftElement(el, this.initialRect);
 
     // Activate drag state
     el.setAttribute("data-dragging", "");
@@ -724,7 +724,7 @@ class DragSession {
     this.el.style.transition = "";
     this.el.removeAttribute("data-dragging");
     this.el.getClientRects(); // reflow: lock in position before animating
-    this.el.style.transform = `translate3d(${target.left - this.box.left}px, ${target.top - this.box.top}px, 0)`;
+    this.el.style.transform = `translate3d(${target.left - this.initialRect.left}px, ${target.top - this.initialRect.top}px, 0)`;
 
     let done = false;
     const finalizeMove = () => {
@@ -768,7 +768,7 @@ class DragSession {
     this.placeholder.remove();
 
     for (const child of this.items) {
-      for (const prop of LIFTED_STYLE_PROPS) {
+      for (const prop of MANAGED_STYLE_PROPS) {
         /** @type {any} */ (child.style)[prop] = "";
       }
       child.removeAttribute("data-dragging");
@@ -785,7 +785,7 @@ class DragSession {
 
 /**
  * Make a container's children sortable via drag-and-drop.
- * Returns a handle with `el`, `opts`, `hooks`, and `destroy()`.
+ * Returns a handle with `el`, `opts`, and `destroy()`.
  * @param {HTMLElement} container
  * @param {SortableOptions} [userOpts]
  * @returns {SortableInstance}
