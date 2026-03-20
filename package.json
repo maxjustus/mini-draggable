@@ -1,26 +1,54 @@
 {
   "name": "mini-sortable",
   "version": "1.0.0",
-  "description": "[Live demo](https://maxjustus.github.io/mini-sortable/)",
-  "main": "alpine-sortable.js",
+  "description": "Tiny drag-to-reorder library for lists, grids, and cross-container transfer",
+  "type": "module",
+  "main": "dist/sortable.js",
+  "module": "dist/sortable.mjs",
+  "types": "dist/sortable.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/sortable.d.ts",
+      "import": "./dist/sortable.mjs",
+      "default": "./dist/sortable.js"
+    },
+    "./alpine": {
+      "types": "./dist/alpine-sortable.d.ts",
+      "import": "./dist/alpine-sortable.mjs",
+      "default": "./dist/alpine-sortable.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks-sortable.d.ts",
+      "import": "./dist/hooks-sortable.mjs",
+      "default": "./dist/hooks-sortable.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node build.js",
+    "check": "npx tsc --noEmit",
+    "test": "npx playwright test"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/maxjustus/mini-sortable.git"
   },
-  "keywords": [],
+  "keywords": ["sortable", "drag-and-drop", "reorder", "flip", "vanilla-js"],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/maxjustus/mini-sortable/issues"
   },
   "homepage": "https://github.com/maxjustus/mini-sortable#readme",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "esbuild": "^0.27.4",
     "prettier": "^3.8.1",
-    "prettier-plugin-jsdoc": "^1.8.0"
+    "prettier-plugin-jsdoc": "^1.8.0",
+    "typescript": "^5.9.3"
   }
 }

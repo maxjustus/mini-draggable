@@ -13,7 +13,7 @@
     import { h, render, Fragment } from 'https://esm.sh/preact@10';
     import { useState, useRef, useEffect } from 'https://esm.sh/preact@10/hooks';
     import htm from 'https://esm.sh/htm@3';
-    import { createUseSortable, arrMove } from './hooks-sortable.js';
+    import { createUseSortable, arrMove } from './dist/hooks-sortable.js';
 
     const html = htm.bind(h);
     const useSortable = createUseSortable({ useEffect, useRef });
