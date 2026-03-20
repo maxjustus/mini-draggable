@@ -45,8 +45,8 @@ export type SortableOptions = {
   onTransfer?: ((event: TransferEvent) => void) | null;
   group?: string | null;
   dragThreshold?: number;
-  touchClickDelay?: number;
   scrollThreshold?: number;
+  animationMs?: number;
 };
 
 export type ResolvedOptions = Required<SortableOptions>;
@@ -60,8 +60,8 @@ const DEFAULTS: ResolvedOptions = {
   onTransfer: null,
   group: null,
   dragThreshold: 5,
-  touchClickDelay: 100,
   scrollThreshold: 150,
+  animationMs: 150,
 };
 
 const LAYOUT_PROPS = [
@@ -80,11 +80,6 @@ const SCROLL_SPEED_RAMP = 28;
 const groups = new Map<string, Set<SortableInstance>>();
 const initialized = new WeakSet<HTMLElement>();
 
-function pointerPos(event: MouseEvent | TouchEvent): Point {
-  if ("touches" in event) return { x: event.touches[0].clientX, y: event.touches[0].clientY };
-  return { x: event.clientX, y: event.clientY };
-}
-
 export function arrMove<T>(arr: T[], from: number, to: number): T[] {
   arr.splice(to, 0, arr.splice(from, 1)[0]);
   return arr;
@@ -97,11 +92,6 @@ function hitTest(x: number, y: number, el: HTMLElement) {
 
 function captureRects(items: HTMLElement[]) {
   return new Map(items.map((el) => [el, el.getBoundingClientRect()] as const));
-}
-
-function cssTransitionMs(el: HTMLElement) {
-  const raw = getComputedStyle(el).transitionDuration;
-  return raw ? parseFloat(raw) * 1000 : 0;
 }
 
 function isScrollable(v: string) { return v === "auto" || v === "scroll"; }
@@ -127,7 +117,7 @@ function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
     get height() { return el.getBoundingClientRect().height; },
   };
   return {
-    scrollBy(x, y) { window.scrollBy({ left: x, top: y, behavior: 'smooth' }); },
+    scrollBy(x, y) { window.scrollBy(x, y); },
     get scrollX() { return window.scrollX; },
     get scrollY() { return window.scrollY; },
     get scrollWidth() { return document.body.scrollWidth; },
@@ -148,8 +138,8 @@ function createPlaceholder(source: HTMLElement) {
   return ph;
 }
 
-/** FLIP-animate items from old to new positions. Suppresses hit-testing during transition. */
-function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, animating: Set<HTMLElement>) {
+/** FLIP-animate items from old to new positions using WAAPI. */
+function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, animating: Set<HTMLElement>, durationMs: number) {
   for (const child of items) {
     const first = beforeRects.get(child);
     if (!first) continue;
@@ -157,30 +147,21 @@ function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, anim
     const dx = first.left - last.left, dy = first.top - last.top;
     if (dx === 0 && dy === 0) continue;
 
-    child.style.transition = "none";
-    child.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-    child.getClientRects();
-    child.style.transition = "";
-    child.style.transform = "none";
-
     animating.add(child);
-    const done = () => animating.delete(child);
-    child.addEventListener("transitionend", done, { once: true });
-    setTimeout(done, cssTransitionMs(child));
+    child.animate(
+      [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }],
+      { duration: durationMs, easing: "ease" },
+    ).finished.then(() => animating.delete(child));
   }
 }
 
-function flipHeight(container: HTMLElement, firstHeight: number) {
+function flipHeight(container: HTMLElement, firstHeight: number, durationMs: number) {
   const lastHeight = container.getBoundingClientRect().height;
   if (firstHeight === lastHeight) return;
-  container.style.height = `${firstHeight}px`;
-  container.style.transition = "none";
-  container.getClientRects();
-  container.style.transition = "";
-  container.style.height = `${lastHeight}px`;
-  const cleanup = () => { container.style.height = ""; container.style.transition = ""; };
-  container.addEventListener("transitionend", cleanup, { once: true });
-  setTimeout(cleanup, cssTransitionMs(container));
+  container.animate(
+    [{ height: `${firstHeight}px` }, { height: `${lastHeight}px` }],
+    { duration: durationMs, easing: "ease" },
+  );
 }
 
 function liftElement(el: HTMLElement, box: DOMRect) {
@@ -266,7 +247,8 @@ function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElem
   return exclude ? items.filter((c) => c !== exclude) : items;
 }
 
-function validateDragTarget(event: MouseEvent | TouchEvent, container: HTMLElement, opts: ResolvedOptions): HTMLElement | null {
+function validateDragTarget(event: PointerEvent, container: HTMLElement, opts: ResolvedOptions): HTMLElement | null {
+  if (event.button !== 0) return null;
   const target = event.target as HTMLElement;
   const item = target.closest(opts.items) as HTMLElement | null;
   if (!item || !container.contains(item)) return null;
@@ -275,7 +257,6 @@ function validateDragTarget(event: MouseEvent | TouchEvent, container: HTMLEleme
     const handle = target.closest(opts.handle);
     if (!handle || !item.contains(handle)) return null;
   }
-  if ("button" in event && event.button !== 0) return null;
   return item;
 }
 
@@ -291,7 +272,7 @@ class DragSession {
   pointer: Point;
   currentContainer: SortableInstance;
   dropping = false;
-  indexDirty = false;
+  framePending = false;
   visualOrder = new Map<HTMLElement, number>();
   exclusionZone: DOMRect | null = null;
   scroller: { start: () => void };
@@ -322,15 +303,17 @@ class DragSession {
       threshold: inst.opts.scrollThreshold,
       getPointer: () => this.pointer,
       isActive: () => !this.dropping,
-      onTick: () => this.scheduleUpdate(),
+      onTick: () => this.scheduleFrame(),
     });
   }
 
-  scheduleUpdate() {
-    if (this.indexDirty) return;
-    this.indexDirty = true;
+  get duration() { return this.inst.opts.animationMs; }
+
+  scheduleFrame() {
+    if (this.framePending || this.dropping) return;
+    this.framePending = true;
     requestAnimationFrame(() => {
-      this.indexDirty = false;
+      this.framePending = false;
       this.scroller.start();
       this.updateIndex();
     });
@@ -340,7 +323,7 @@ class DragSession {
     if (this.dropping) return;
     this.pointer = pos;
     this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
-    this.scheduleUpdate();
+    this.scheduleFrame();
   }
 
   isInExclusionZone(cx: number, cy: number) {
@@ -381,7 +364,7 @@ class DragSession {
     const ref = newOrder.slice(dragIdx + 1).find((c) => c !== this.el) ?? null;
     this.placeholder.parentNode!.insertBefore(this.placeholder, ref);
     newOrder.forEach((c, i) => this.visualOrder.set(c, i));
-    flip(siblings, beforeRects, this.animating);
+    flip(siblings, beforeRects, this.animating, this.duration);
   }
 
   checkTransfer(cx: number, cy: number) {
@@ -416,25 +399,28 @@ class DragSession {
     this.currentIndex = insertIdx;
     this.currentContainer = target;
 
-    flip(siblings, oldRects, this.animating);
-    flip(targetItems, targetRects, this.animating);
-    flipHeight(old.el, oldHeight);
-    flipHeight(target.el, targetHeight);
+    flip(siblings, oldRects, this.animating, this.duration);
+    flip(targetItems, targetRects, this.animating, this.duration);
+    flipHeight(old.el, oldHeight, this.duration);
+    flipHeight(target.el, targetHeight, this.duration);
   }
 
   drop() {
     this.dropping = true;
     const target = this.placeholder.getBoundingClientRect();
-    this.el.style.transition = "";
+    const dx = target.left - this.initialRect.left;
+    const dy = target.top - this.initialRect.top;
+
     this.el.removeAttribute("data-dragging");
-    this.el.getClientRects();
-    this.el.style.transform = `translate3d(${target.left - this.initialRect.left}px, ${target.top - this.initialRect.top}px, 0)`;
 
-    let done = false;
-    const finalize = () => {
-      if (done) return;
-      done = true;
-
+    // Animate slide to placeholder position via WAAPI
+    this.el.animate(
+      [
+        { transform: this.el.style.transform },
+        { transform: `translate3d(${dx}px, ${dy}px, 0)` },
+      ],
+      { duration: this.duration, easing: "ease" },
+    ).finished.then(() => {
       const crossContainer = this.currentContainer !== this.inst;
       const from = crossContainer ? this.originalIndex : this.draggedIndex;
       const to = this.currentIndex;
@@ -449,10 +435,7 @@ class DragSession {
       }
 
       this.cleanup();
-    };
-
-    this.el.addEventListener("transitionend", finalize, { once: true });
-    setTimeout(finalize, cssTransitionMs(this.el));
+    });
   }
 
   cleanup() {
@@ -496,25 +479,16 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     groups.get(opts.group)!.add(inst);
   }
 
-  function handleTouchStart(event: TouchEvent) {
-    event.preventDefault();
-    const target = event.target as HTMLElement;
-    setTimeout(() => {
-      if (!session) target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-    }, opts.touchClickDelay);
-  }
-
-  function onPointerDown(event: MouseEvent | TouchEvent) {
+  function onPointerDown(event: PointerEvent) {
     if (session) return;
     const item = validateDragTarget(event, container, opts);
     if (!item) return;
-    if (event.type === "touchstart") handleTouchStart(event as TouchEvent);
 
-    const initialPos = pointerPos(event);
+    const initialPos: Point = { x: event.clientX, y: event.clientY };
     let pending = true;
 
-    function onMove(event: MouseEvent | TouchEvent) {
-      const pos = pointerPos(event);
+    function onMove(event: PointerEvent) {
+      const pos: Point = { x: event.clientX, y: event.clientY };
       if (pending) {
         if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
           Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
@@ -534,15 +508,12 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
-    window.addEventListener("mousemove", onMove as EventListener, { passive: false, signal: dragSig });
-    window.addEventListener("touchmove", onMove as EventListener, { passive: false, signal: dragSig });
-    window.addEventListener("mouseup", onUp, { signal: dragSig });
-    window.addEventListener("touchend", onUp, { signal: dragSig });
-    window.addEventListener("touchcancel", onUp, { signal: dragSig });
+    window.addEventListener("pointermove", onMove as EventListener, { passive: false, signal: dragSig });
+    window.addEventListener("pointerup", onUp, { signal: dragSig });
+    window.addEventListener("pointercancel", onUp, { signal: dragSig });
   }
 
-  on(container, "mousedown", onPointerDown as EventListener);
-  on(container, "touchstart", onPointerDown as EventListener, { passive: false });
+  on(container, "pointerdown", onPointerDown as EventListener);
   on(window, "selectstart", (e) => { if (session) e.preventDefault(); });
   on(window, "dragstart", (e) => { if (session) e.preventDefault(); });
 
