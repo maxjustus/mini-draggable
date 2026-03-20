@@ -127,7 +127,7 @@ function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
     get height() { return el.getBoundingClientRect().height; },
   };
   return {
-    scrollBy(x, y) { window.scrollBy(x, y); },
+    scrollBy(x, y) { window.scrollBy({ left: x, top: y, behavior: 'smooth' }); },
     get scrollX() { return window.scrollX; },
     get scrollY() { return window.scrollY; },
     get scrollWidth() { return document.body.scrollWidth; },
@@ -346,7 +346,7 @@ class DragSession {
   isInExclusionZone(cx: number, cy: number) {
     if (!this.exclusionZone) return false;
     if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
-        cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return true;
+      cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return true;
     this.exclusionZone = null;
     return false;
   }
@@ -517,7 +517,7 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
       const pos = pointerPos(event);
       if (pending) {
         if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
-            Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
+          Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
         pending = false;
         session = new DragSession(inst, item!, initialPos);
       }
