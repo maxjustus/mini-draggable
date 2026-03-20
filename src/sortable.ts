@@ -1,4 +1,5 @@
 // Vanilla JS drag-to-reorder library.
+// TODO: needs some more scrutiny/refactoring..
 // Uses placeholder + FLIP for correct positioning in any layout
 // (lists, grids, flex, variable heights).
 //
@@ -120,10 +121,13 @@ function cssTransitionMs(el: HTMLElement) {
   return raw ? parseFloat(raw) * 1000 : 0;
 }
 
+function isScrollable(v: string) { return v === 'auto' || v === 'scroll'; }
+
 function findScrollParent(el: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = el;
   while (node) {
-    if (/scroll|auto/.test(getComputedStyle(node).overflow)) return node;
+    const s = getComputedStyle(node);
+    if (isScrollable(s.overflowY) || isScrollable(s.overflowX)) return node;
     node = node.parentElement;
   }
   return null;
@@ -143,7 +147,7 @@ function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
   }
 
   return {
-    scrollBy(x, y) { window.scrollBy(x, y); },
+    scrollBy(x, y) { window.scrollBy({ left: x, top: y, behavior: "smooth" }); },
     get scrollX() { return window.scrollX; },
     get scrollY() { return window.scrollY; },
     get scrollWidth() { return document.body.scrollWidth; },
@@ -219,15 +223,36 @@ function liftElement(el: HTMLElement, box: DOMRect) {
   el.style.transform = "translate3d(0, 0, 0)";
 }
 
+/**
+ * Exponential scroll-speed curve divisor. Controls how aggressively
+ * scroll speed ramps as the pointer approaches a container edge.
+ * Lower = faster ramp.
+ */
+const SCROLL_SPEED_RAMP = 28;
+
+function scrollSpeed(dist: number, threshold: number): number {
+  return 2 ** ((threshold - dist) / SCROLL_SPEED_RAMP);
+}
+
 function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isActive, onTick }: AutoScrollerConfig) {
   let scrolling = false;
 
   function edgeDist(p: Point): EdgeDistances {
     if (scrollEl) {
       const r = scrollEl.getBoundingClientRect();
-      return { top: p.y - r.top, right: r.right - p.x, bottom: r.bottom - p.y, left: p.x - r.left };
+      return {
+        top: p.y - r.top,
+        right: r.right - p.x,
+        bottom: r.bottom - p.y,
+        left: p.x - r.left
+      };
     }
-    return { top: p.y, right: innerWidth - p.x, bottom: innerHeight - p.y, left: p.x };
+    return {
+      top: p.y,
+      right: window.innerWidth - p.x,
+      bottom: window.innerHeight - p.y,
+      left: p.x
+    };
   }
 
   function thresh() {
@@ -238,30 +263,28 @@ function createAutoScroller({ scrollEl, target: st, threshold, getPointer, isAct
     return { x: threshold, y: threshold };
   }
 
-  function shouldScroll(d: EdgeDistances, t: { x: number; y: number }) {
-    return (d.top < t.y && st.scrollY > 0)
-      || (d.right < t.x && st.scrollX + st.width < st.scrollWidth)
-      || (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight)
-      || (d.left < t.x && st.scrollX > 0);
+  /** Compute accumulated scroll deltas for all active edges, or null if no scrolling needed. */
+  function computeScroll(d: EdgeDistances, t: { x: number; y: number }): [x: number, y: number] | null {
+    let dx = 0, dy = 0;
+    if (d.top < t.y && st.scrollY > 0) dy -= scrollSpeed(d.top, t.y);
+    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) dx += scrollSpeed(d.right, t.x);
+    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) dy += scrollSpeed(d.bottom, t.y);
+    if (d.left < t.x && st.scrollX > 0) dx -= scrollSpeed(d.left, t.x);
+    return (dx || dy) ? [dx, dy] : null;
   }
 
   function loop() {
     if (!isActive() || !scrolling) { scrolling = false; return; }
     requestAnimationFrame(loop);
-
-    const d = edgeDist(getPointer());
-    const t = thresh();
-    if (d.top < t.y && st.scrollY > 0) st.scrollBy(0, -(2 ** ((t.y - d.top) / 28)));
-    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) st.scrollBy(2 ** ((t.x - d.right) / 28), 0);
-    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) st.scrollBy(0, 2 ** ((t.y - d.bottom) / 28));
-    if (d.left < t.x && st.scrollX > 0) st.scrollBy(-(2 ** ((t.x - d.left) / 28)), 0);
+    const scroll = computeScroll(edgeDist(getPointer()), thresh());
+    if (scroll) st.scrollBy(scroll[0], scroll[1]);
     onTick();
   }
 
   return {
     start() {
       if (scrolling) return;
-      if (shouldScroll(edgeDist(getPointer()), thresh())) {
+      if (computeScroll(edgeDist(getPointer()), thresh())) {
         scrolling = true;
         requestAnimationFrame(loop);
       }
@@ -379,7 +402,7 @@ class DragSession {
   isInExclusionZone(cx: number, cy: number) {
     if (!this.exclusionZone) return false;
     if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
-        cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return true;
+      cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return true;
     this.exclusionZone = null;
     return false;
   }
@@ -557,7 +580,7 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
       const pos = pointerPos(event);
       if (pending) {
         if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
-            Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
+          Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
         pending = false;
         session = new DragSession(inst, item!, initialPos);
       }
