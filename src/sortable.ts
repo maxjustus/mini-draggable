@@ -280,6 +280,11 @@ function insertPlaceholderAt(placeholder: HTMLElement, container: HTMLElement, i
   return idx;
 }
 
+function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElement) {
+  const items = [...container.querySelectorAll(selector)] as HTMLElement[];
+  return exclude ? items.filter((c) => c !== exclude) : items;
+}
+
 function validateDragTarget(event: MouseEvent | TouchEvent, container: HTMLElement, opts: ResolvedOptions): HTMLElement | null {
   const target = event.target as HTMLElement;
   const item = target.closest(opts.items) as HTMLElement | null;
@@ -320,7 +325,7 @@ class DragSession {
   ) {
     this.initialRect = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
-    this.items = [...inst.el.querySelectorAll(inst.opts.items)] as HTMLElement[];
+    this.items = queryItems(inst.el, inst.opts.items);
     this.originalIndex = this.items.indexOf(el);
     this.draggedIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
@@ -370,6 +375,15 @@ class DragSession {
     this.scheduleUpdate();
   }
 
+  /** Returns true if the dragged center is still inside the last swap's exclusion zone. */
+  isInExclusionZone(cx: number, cy: number) {
+    if (!this.exclusionZone) return false;
+    if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
+        cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return true;
+    this.exclusionZone = null;
+    return false;
+  }
+
   updateIndex() {
     if (this.dropping) return;
 
@@ -377,12 +391,7 @@ class DragSession {
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
 
-    // Stay inside the exclusion zone — no swaps until the center leaves
-    if (this.exclusionZone) {
-      if (cx > this.exclusionZone.left && cx < this.exclusionZone.right &&
-          cy > this.exclusionZone.top && cy < this.exclusionZone.bottom) return;
-      this.exclusionZone = null;
-    }
+    if (this.isInExclusionZone(cx, cy)) return;
 
     for (const child of this.items) {
       if (child === this.el || this.animating.has(child)) continue;
@@ -425,8 +434,7 @@ class DragSession {
   transfer(target: SortableInstance, cy: number) {
     const oldInst = this.currentContainer;
     const siblings = this.items.filter((c) => c !== this.el);
-    const targetItems = ([...target.el.querySelectorAll(target.opts.items)] as HTMLElement[])
-      .filter((c) => c !== this.el);
+    const targetItems = queryItems(target.el, target.opts.items, this.el);
 
     const oldRects = captureRects(siblings);
     const targetRects = captureRects(targetItems);
@@ -438,8 +446,7 @@ class DragSession {
     const insertIdx = insertPlaceholderAt(this.placeholder, target.el, targetItems, cy);
     target.el.classList.add("sortable-active");
 
-    this.items = ([...target.el.querySelectorAll(target.opts.items)] as HTMLElement[])
-      .filter((c) => c !== this.el);
+    this.items = queryItems(target.el, target.opts.items, this.el);
     this.items.splice(insertIdx, 0, this.el);
     this.visualOrder.clear();
     this.items.forEach((c, i) => this.visualOrder.set(c, i));
@@ -527,18 +534,21 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     groups.get(opts.group)!.add(inst);
   }
 
+  // On touch, prevent default and fire a synthetic click if the drag
+  // threshold isn't crossed (so taps still work).
+  function handleTouchStart(event: TouchEvent) {
+    event.preventDefault();
+    const target = event.target as HTMLElement;
+    setTimeout(() => {
+      if (!session) target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    }, opts.touchClickDelay);
+  }
+
   function onPointerDown(event: MouseEvent | TouchEvent) {
     if (session) return;
     const item = validateDragTarget(event, container, opts);
     if (!item) return;
-
-    if (event.type === "touchstart") {
-      event.preventDefault();
-      const target = event.target as HTMLElement;
-      setTimeout(() => {
-        if (!session) target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-      }, opts.touchClickDelay);
-    }
+    if (event.type === "touchstart") handleTouchStart(event as TouchEvent);
 
     const initialPos = pointerPos(event);
     let pending = true;
