@@ -452,6 +452,10 @@ function KanbanBoard() {
 }
 ```
 
+## Browser support
+
+Chrome 84+, Firefox 75+, Safari 13.1+, Edge 84+. Requires Pointer Events and Web Animations API (`.finished` promise). No IE11 support.
+
 ## Development
 
 ES module imports require a local server. To view the test pages:
