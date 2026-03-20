@@ -21,21 +21,26 @@ export { arrMove };
 
 /**
  * @typedef {{
- *   handle?: boolean,
- *   group?: string | null,
- *   disabled?: ((el: HTMLElement) => boolean) | null,
- *   onReorder?: ((event: import('./sortable.js').ReorderEvent) => void) | null,
- *   onTransfer?: ((event: import('./sortable.js').TransferEvent) => void) | null,
- *   spliceOut?: ((i: number) => any) | null,
- *   spliceIn?: ((i: number, item: any) => void) | null,
+ *   handle?: boolean;
+ *   group?: string | null;
+ *   disabled?: ((el: HTMLElement) => boolean) | null;
+ *   onReorder?: ((event: import("./sortable.js").ReorderEvent) => void) | null;
+ *   onTransfer?: ((event: import("./sortable.js").TransferEvent) => void) | null;
+ *   spliceOut?: ((i: number) => any) | null;
+ *   spliceIn?: ((i: number, item: any) => void) | null;
  * }} UseSortableOptions
  */
 
-/** @type {WeakMap<import('./sortable.js').SortableInstance, {spliceOut: (i: number) => any, spliceIn: (i: number, item: any) => void}>} */
+/**
+ * @type {WeakMap<
+ *   import("./sortable.js").SortableInstance,
+ *   { spliceOut: (i: number) => any; spliceIn: (i: number, item: any) => void }
+ * >}
+ */
 const bindings = new WeakMap();
 
 /**
- * @param {{ useEffect: Function, useRef: Function }} hooks
+ * @param {{ useEffect: Function; useRef: Function }} hooks
  * @returns {(opts?: UseSortableOptions) => Ref<HTMLElement | null>}
  */
 export function createUseSortable({ useEffect, useRef }) {
@@ -53,9 +58,9 @@ export function createUseSortable({ useEffect, useRef }) {
       const s = sortable(ref.current, {
         handle: optsRef.current.handle ? "[data-sortable-handle]" : null,
         group: optsRef.current.group ?? null,
-        onReorder: (/** @type {import('./sortable.js').ReorderEvent} */ e) =>
+        onReorder: (/** @type {import("./sortable.js").ReorderEvent} */ e) =>
           optsRef.current.onReorder?.(e),
-        onTransfer: (/** @type {import('./sortable.js').TransferEvent} */ e) => {
+        onTransfer: (/** @type {import("./sortable.js").TransferEvent} */ e) => {
           const src = bindings.get(e.sourceContainer);
           const tgt = bindings.get(e.targetContainer);
           if (src && tgt) {

@@ -2,12 +2,12 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Simulate a drag from one element to another using mouse events.
- * Moves in small steps to trigger the drag threshold and reorder logic.
+ * Simulate a drag from one element to another using mouse events. Moves in small steps to trigger
+ * the drag threshold and reorder logic.
  *
- * @param {import('@playwright/test').Page} page
- * @param {import('@playwright/test').Locator} from
- * @param {import('@playwright/test').Locator} to
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").Locator} from
+ * @param {import("@playwright/test").Locator} to
  */
 async function drag(page, from, to) {
   // Scroll into view before reading coordinates

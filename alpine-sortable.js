@@ -9,7 +9,12 @@
 
 import { sortable, arrMove } from "./sortable.js";
 
-/** @type {WeakMap<import('./sortable.js').SortableInstance, {spliceOut: (i: number) => any, spliceIn: (i: number, item: any) => void}>} */
+/**
+ * @type {WeakMap<
+ *   import("./sortable.js").SortableInstance,
+ *   { spliceOut: (i: number) => any; spliceIn: (i: number, item: any) => void }
+ * >}
+ */
 const bindings = new WeakMap();
 
 /** @param {any} Alpine */
@@ -18,8 +23,8 @@ export default function AlpineSortable(Alpine) {
     "sortable",
     (
       /** @type {HTMLElement} */ el,
-      /** @type {{expression: string, modifiers: string[]}} */ { expression, modifiers },
-      /** @type {{evaluate: (expr: string) => any, cleanup: (fn: () => void) => void}} */ {
+      /** @type {{ expression: string; modifiers: string[] }} */ { expression, modifiers },
+      /** @type {{ evaluate: (expr: string) => any; cleanup: (fn: () => void) => void }} */ {
         evaluate,
         cleanup,
       },
@@ -41,7 +46,7 @@ export default function AlpineSortable(Alpine) {
       const d = sortable(el, {
         handle: "[data-sortable-handle]",
         group,
-        /** @param {import('./sortable.js').ReorderEvent} evt */
+        /** @param {import("./sortable.js").ReorderEvent} evt */
         onReorder({ from, to }) {
           if (expression) {
             arrMove(evaluate(expression), from, to);
@@ -53,7 +58,7 @@ export default function AlpineSortable(Alpine) {
             }),
           );
         },
-        /** @param {import('./sortable.js').TransferEvent} evt */
+        /** @param {import("./sortable.js").TransferEvent} evt */
         onTransfer({ from, to, sourceContainer, targetContainer }) {
           const src = bindings.get(sourceContainer);
           const tgt = bindings.get(targetContainer);
@@ -77,7 +82,7 @@ export default function AlpineSortable(Alpine) {
 
   Alpine.directive(
     "sortable-item",
-    (/** @type {HTMLElement} */ el, /** @type {{modifiers: string[]}} */ { modifiers }) => {
+    (/** @type {HTMLElement} */ el, /** @type {{ modifiers: string[] }} */ { modifiers }) => {
       el.setAttribute("data-sortable", "");
       if (modifiers.includes("disabled")) el.setAttribute("data-drag-disabled", "");
     },

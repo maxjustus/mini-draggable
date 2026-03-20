@@ -16,46 +16,49 @@
 //   s.destroy();
 
 /**
- * @typedef {{x: number, y: number}} Point
+ * @typedef {{ x: number; y: number }} Point
  *
- * @typedef {{from: number, to: number}} ReorderEvent
+ * @typedef {{ from: number; to: number }} ReorderEvent
  *
  * @typedef {{
- *   from: number,
- *   to: number,
- *   el: HTMLElement,
- *   sourceContainer: SortableInstance,
- *   targetContainer: SortableInstance,
+ *   from: number;
+ *   to: number;
+ *   el: HTMLElement;
+ *   sourceContainer: SortableInstance;
+ *   targetContainer: SortableInstance;
  * }} TransferEvent
  *
- * @typedef {{
- *   scrollBy: (x: number, y: number) => void,
- *   scrollX: number,
- *   scrollY: number,
- *   scrollWidth: number,
- *   scrollHeight: number,
- *   width: number,
- *   height: number,
- * }} ScrollTarget
  *
  * @typedef {{
- *   items?: string,
- *   handle?: string | null,
- *   disabled?: ((el: HTMLElement) => boolean) | null,
- *   onReorder?: ((event: ReorderEvent) => void) | null,
- *   onTransfer?: ((event: TransferEvent) => void) | null,
- *   group?: string | null,
- *   dragThreshold?: number,
- *   touchClickDelay?: number,
- *   scrollThreshold?: number,
+ *   scrollBy: (x: number, y: number) => void;
+ *   scrollX: number;
+ *   scrollY: number;
+ *   scrollWidth: number;
+ *   scrollHeight: number;
+ *   width: number;
+ *   height: number;
+ * }} ScrollTarget
+ *
+ *
+ * @typedef {{
+ *   items?: string;
+ *   handle?: string | null;
+ *   disabled?: ((el: HTMLElement) => boolean) | null;
+ *   onReorder?: ((event: ReorderEvent) => void) | null;
+ *   onTransfer?: ((event: TransferEvent) => void) | null;
+ *   group?: string | null;
+ *   dragThreshold?: number;
+ *   touchClickDelay?: number;
+ *   scrollThreshold?: number;
  * }} SortableOptions
+ *
  *
  * @typedef {Required<SortableOptions>} ResolvedOptions
  *
  * @typedef {{
- *   el: HTMLElement,
- *   opts: ResolvedOptions,
- *   destroy: () => void,
+ *   el: HTMLElement;
+ *   opts: ResolvedOptions;
+ *   destroy: () => void;
  * }} SortableInstance
  */
 
@@ -91,6 +94,7 @@ const initialized = new WeakSet();
 
 /**
  * Extract pointer coordinates from a mouse or touch event.
+ *
  * @param {MouseEvent | TouchEvent} event
  * @returns {Point}
  */
@@ -103,6 +107,7 @@ function pointerPos(event) {
 
 /**
  * Move an element within an array from one index to another (mutates).
+ *
  * @template T
  * @param {T[]} arr
  * @param {number} from
@@ -116,6 +121,7 @@ export function arrMove(arr, from, to) {
 
 /**
  * Check if a point (x, y) is inside an element's bounding rect.
+ *
  * @param {number} x
  * @param {number} y
  * @param {HTMLElement} el
@@ -128,6 +134,7 @@ function hitTest(x, y, el) {
 
 /**
  * Snapshot bounding rects for a list of elements.
+ *
  * @param {HTMLElement[]} items
  * @returns {Map<HTMLElement, DOMRect>}
  */
@@ -142,6 +149,7 @@ function captureRects(items) {
 
 /**
  * Read the CSS-defined transition duration for an element (in ms).
+ *
  * @param {HTMLElement} el
  * @returns {number}
  */
@@ -152,6 +160,7 @@ function cssTransitionMs(el) {
 
 /**
  * Walk up the DOM to find the nearest scrollable ancestor.
+ *
  * @param {HTMLElement} el
  * @returns {HTMLElement | null}
  */
@@ -167,6 +176,7 @@ function findScrollParent(el) {
 
 /**
  * Build a scroll-target adapter for either a scrollable element or the window.
+ *
  * @param {HTMLElement | null} el
  * @returns {ScrollTarget}
  */
@@ -224,8 +234,9 @@ function buildScrollTarget(el) {
 }
 
 /**
- * Create a placeholder element that occupies the same layout space as the source.
- * Copies computed dimensions, margins, grid/flex properties.
+ * Create a placeholder element that occupies the same layout space as the source. Copies computed
+ * dimensions, margins, grid/flex properties.
+ *
  * @param {HTMLElement} source
  * @returns {HTMLElement}
  */
@@ -256,9 +267,9 @@ function createPlaceholder(source) {
 }
 
 /**
- * Animate items from their old positions to their new positions using FLIP.
- * Items are added to the `animating` set during the transition to prevent
- * re-triggering swaps while they're in flight.
+ * Animate items from their old positions to their new positions using FLIP. Items are added to the
+ * `animating` set during the transition to prevent re-triggering swaps while they're in flight.
+ *
  * @param {HTMLElement[]} items
  * @param {Map<HTMLElement, DOMRect>} beforeRects
  * @param {Set<HTMLElement>} animating
@@ -292,6 +303,7 @@ function flip(items, beforeRects, animating) {
 
 /**
  * Animate a container's height change using FLIP.
+ *
  * @param {HTMLElement} container
  * @param {number} firstHeight
  */
@@ -314,8 +326,9 @@ function flipHeight(container, firstHeight) {
 }
 
 /**
- * Lift an element out of normal flow into a fixed position at its current
- * visual location. Used at drag start to float the dragged item.
+ * Lift an element out of normal flow into a fixed position at its current visual location. Used at
+ * drag start to float the dragged item.
+ *
  * @param {HTMLElement} el
  * @param {DOMRect} box
  */
@@ -331,17 +344,18 @@ function liftElement(el, box) {
 }
 
 /**
- * Create an auto-scroller that scrolls a container (or the window) when
- * the pointer is near its edges during a drag.
+ * Create an auto-scroller that scrolls a container (or the window) when the pointer is near its
+ * edges during a drag.
+ *
  * @param {{
- *   scrollEl: HTMLElement | null,
- *   target: ScrollTarget,
- *   threshold: number,
- *   getPointer: () => Point,
- *   isActive: () => boolean,
- *   onTick: () => void,
+ *   scrollEl: HTMLElement | null;
+ *   target: ScrollTarget;
+ *   threshold: number;
+ *   getPointer: () => Point;
+ *   isActive: () => boolean;
+ *   onTick: () => void;
  * }} config
- * @returns {{start: () => void}}
+ * @returns {{ start: () => void }}
  */
 function createAutoScroller({
   scrollEl,
@@ -355,7 +369,7 @@ function createAutoScroller({
 
   /**
    * @param {Point} pointer
-   * @returns {{top: number, right: number, bottom: number, left: number}}
+   * @returns {{ top: number; right: number; bottom: number; left: number }}
    */
   function edgeDistances(pointer) {
     if (scrollEl) {
@@ -375,7 +389,7 @@ function createAutoScroller({
     };
   }
 
-  /** @returns {{x: number, y: number}} */
+  /** @returns {{ x: number; y: number }} */
   function scrollThresholds() {
     if (scrollEl) {
       const rect = scrollEl.getBoundingClientRect();
@@ -388,8 +402,8 @@ function createAutoScroller({
   }
 
   /**
-   * @param {{top: number, right: number, bottom: number, left: number}} dist
-   * @param {{x: number, y: number}} thresh
+   * @param {{ top: number; right: number; bottom: number; left: number }} dist
+   * @param {{ x: number; y: number }} thresh
    * @returns {boolean}
    */
   function shouldScroll(dist, thresh) {
@@ -446,13 +460,13 @@ function createAutoScroller({
 }
 
 /**
- * Insert a placeholder into a container at the vertical position closest
- * to the given y-coordinate.
+ * Insert a placeholder into a container at the vertical position closest to the given y-coordinate.
+ *
  * @param {HTMLElement} placeholder
  * @param {HTMLElement} container
  * @param {HTMLElement[]} items
  * @param {number} cy
- * @returns {number} the insertion index
+ * @returns {number} The insertion index
  */
 function insertPlaceholderAt(placeholder, container, items, cy) {
   const found = items.findIndex((child) => {
@@ -468,8 +482,9 @@ function insertPlaceholderAt(placeholder, container, items, cy) {
 }
 
 /**
- * Validate a pointer event as a valid drag start. Returns the target
- * sortable item, or null if the event should be ignored.
+ * Validate a pointer event as a valid drag start. Returns the target sortable item, or null if the
+ * event should be ignored.
+ *
  * @param {MouseEvent | TouchEvent} event
  * @param {HTMLElement} container
  * @param {ResolvedOptions} opts
@@ -493,9 +508,8 @@ function validateDragTarget(event, container, opts) {
 }
 
 /**
- * Short-lived drag session. Created when the drag threshold is crossed,
- * discarded after the drop animation settles. All drag state lives here
- * as explicit instance properties.
+ * Short-lived drag session. Created when the drag threshold is crossed, discarded after the drop
+ * animation settles. All drag state lives here as explicit instance properties.
  */
 class DragSession {
   /**
@@ -560,8 +574,8 @@ class DragSession {
   }
 
   /**
-   * Debounce index updates to one per animation frame. Both move() and
-   * the auto-scroller's onTick route through here.
+   * Debounce index updates to one per animation frame. Both move() and the auto-scroller's onTick
+   * route through here.
    */
   scheduleUpdate() {
     if (this.indexDirty) return;
@@ -574,8 +588,9 @@ class DragSession {
   }
 
   /**
-   * Called on every pointer move during drag. Updates the floating
-   * element's position and schedules an index check.
+   * Called on every pointer move during drag. Updates the floating element's position and schedules
+   * an index check.
+   *
    * @param {Point} pos
    */
   move(pos) {
@@ -588,9 +603,8 @@ class DragSession {
   }
 
   /**
-   * Check if the dragged element's center overlaps a sibling. If so,
-   * reposition the placeholder. Respects the exclusion zone and the
-   * animating set.
+   * Check if the dragged element's center overlaps a sibling. If so, reposition the placeholder.
+   * Respects the exclusion zone and the animating set.
    */
   updateIndex() {
     if (this.dropping) return;
@@ -630,8 +644,8 @@ class DragSession {
   }
 
   /**
-   * Move the placeholder to reflect the current drag position within the
-   * same container. FLIP-animates siblings.
+   * Move the placeholder to reflect the current drag position within the same container.
+   * FLIP-animates siblings.
    */
   reposition() {
     const newOrder = arrMove([...this.items], this.draggedIndex, this.currentIndex);
@@ -648,8 +662,9 @@ class DragSession {
   }
 
   /**
-   * Check if the dragged element has left its current container and
-   * entered another container in the same group.
+   * Check if the dragged element has left its current container and entered another container in
+   * the same group.
+   *
    * @param {number} cx
    * @param {number} cy
    */
@@ -669,8 +684,9 @@ class DragSession {
   }
 
   /**
-   * Transfer the dragged element from the current container to a
-   * different container in the same group.
+   * Transfer the dragged element from the current container to a different container in the same
+   * group.
+   *
    * @param {SortableInstance} target
    * @param {number} cy
    */
@@ -714,8 +730,8 @@ class DragSession {
   }
 
   /**
-   * Begin the drop animation. The element slides to the placeholder
-   * position, then settle() fires to clean up and dispatch callbacks.
+   * Begin the drop animation. The element slides to the placeholder position, then settle() fires
+   * to clean up and dispatch callbacks.
    */
   drop() {
     this.dropping = true;
@@ -761,8 +777,8 @@ class DragSession {
   }
 
   /**
-   * Remove the placeholder, clear all inline styles set during drag,
-   * and restore body/container state.
+   * Remove the placeholder, clear all inline styles set during drag, and restore body/container
+   * state.
    */
   cleanup() {
     this.placeholder.remove();
@@ -784,8 +800,9 @@ class DragSession {
 }
 
 /**
- * Make a container's children sortable via drag-and-drop.
- * Returns a handle with `el`, `opts`, and `destroy()`.
+ * Make a container's children sortable via drag-and-drop. Returns a handle with `el`, `opts`, and
+ * `destroy()`.
+ *
  * @param {HTMLElement} container
  * @param {SortableOptions} [userOpts]
  * @returns {SortableInstance}
