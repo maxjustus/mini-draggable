@@ -3,20 +3,12 @@
 //
 // Usage:
 //   import { createUseSortable } from 'mini-sortable/hooks';
-//
-//   // React
-//   import { useEffect, useRef } from 'react';
-//   // Preact
-//   import { useEffect, useRef } from 'preact/hooks';
-//
+//   import { useEffect, useRef } from 'react'; // or 'preact/hooks'
 //   const useSortable = createUseSortable({ useEffect, useRef });
 
 import {
-  sortable,
-  arrMove,
-  type SortableInstance,
-  type ReorderEvent,
-  type TransferEvent,
+  sortable, arrMove,
+  type SortableInstance, type SpliceBinding, type ReorderEvent, type TransferEvent,
 } from "./sortable.js";
 
 export { arrMove };
@@ -33,19 +25,12 @@ export type UseSortableOptions = {
   spliceIn?: ((i: number, item: any) => void) | null;
 };
 
-type SpliceBinding = {
-  spliceOut: (i: number) => any;
-  spliceIn: (i: number, item: any) => void;
-};
+const bindings = new WeakMap<SortableInstance, SpliceBinding>();
 
-type HookFunctions = {
+export function createUseSortable({ useEffect, useRef }: {
   useEffect: (effect: () => void | (() => void), deps?: any[]) => void;
   useRef: <T>(initial: T) => Ref<T>;
-};
-
-const bindings: WeakMap<SortableInstance, SpliceBinding> = new WeakMap();
-
-export function createUseSortable({ useEffect, useRef }: HookFunctions) {
+}) {
   return function useSortable(opts: UseSortableOptions = {}): Ref<HTMLElement | null> {
     const ref = useRef<HTMLElement | null>(null);
     const optsRef = useRef(opts);
@@ -68,8 +53,8 @@ export function createUseSortable({ useEffect, useRef }: HookFunctions) {
         },
       });
       bindings.set(s, {
-        spliceOut: (i: number) => optsRef.current.spliceOut?.(i),
-        spliceIn: (i: number, item: any) => optsRef.current.spliceIn?.(i, item),
+        spliceOut: (i) => optsRef.current.spliceOut?.(i),
+        spliceIn: (i, item) => optsRef.current.spliceIn?.(i, item),
       });
       return () => s.destroy();
     }, []);
