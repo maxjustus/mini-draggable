@@ -65,15 +65,31 @@ const DEFAULTS: ResolvedOptions = {
 };
 
 const LAYOUT_PROPS = [
-  "width", "height", "minWidth", "minHeight",
-  "margin", "padding", "boxSizing",
-  "gridColumn", "gridRow", "gridArea",
-  "flexGrow", "flexShrink", "flexBasis", "alignSelf",
+  "width",
+  "height",
+  "minWidth",
+  "minHeight",
+  "margin",
+  "padding",
+  "boxSizing",
+  "gridColumn",
+  "gridRow",
+  "gridArea",
+  "flexGrow",
+  "flexShrink",
+  "flexBasis",
+  "alignSelf",
 ] as const;
 
 const MANAGED_STYLE_PROPS = [
-  "transform", "transition", "position", "zIndex",
-  "top", "left", "width", "height",
+  "transform",
+  "transition",
+  "position",
+  "zIndex",
+  "top",
+  "left",
+  "width",
+  "height",
 ] as const;
 
 const SCROLL_SPEED_RAMP = 28;
@@ -86,15 +102,17 @@ export function arrMove<T>(arr: T[], from: number, to: number): T[] {
 }
 
 function hitTest(x: number, y: number, el: HTMLElement) {
-  const r = el.getBoundingClientRect();
-  return x > r.left && x < r.right && y > r.top && y < r.bottom;
+  const rect = el.getBoundingClientRect();
+  return x > rect.left && x < rect.right && y > rect.top && y < rect.bottom;
 }
 
 function captureRects(items: HTMLElement[]) {
   return new Map(items.map((el) => [el, el.getBoundingClientRect()] as const));
 }
 
-function isScrollable(v: string) { return v === "auto" || v === "scroll"; }
+function isScrollable(v: string) {
+  return v === "auto" || v === "scroll";
+}
 
 function findScrollParent(el: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = el;
@@ -107,53 +125,91 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
 }
 
 function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
-  if (el) return {
-    scrollBy(x, y) { el.scrollTop += y; el.scrollLeft += x; },
-    get scrollX() { return el.scrollLeft; },
-    get scrollY() { return el.scrollTop; },
-    get scrollWidth() { return el.scrollWidth; },
-    get scrollHeight() { return el.scrollHeight; },
-    get width() { return el.getBoundingClientRect().width; },
-    get height() { return el.getBoundingClientRect().height; },
-  };
+  if (el)
+    return {
+      scrollBy(x, y) {
+        el.scrollTop += y;
+        el.scrollLeft += x;
+      },
+      get scrollX() {
+        return el.scrollLeft;
+      },
+      get scrollY() {
+        return el.scrollTop;
+      },
+      get scrollWidth() {
+        return el.scrollWidth;
+      },
+      get scrollHeight() {
+        return el.scrollHeight;
+      },
+      get width() {
+        return el.getBoundingClientRect().width;
+      },
+      get height() {
+        return el.getBoundingClientRect().height;
+      },
+    };
   return {
-    scrollBy(x, y) { window.scrollBy(x, y); },
-    get scrollX() { return window.scrollX; },
-    get scrollY() { return window.scrollY; },
-    get scrollWidth() { return document.body.scrollWidth; },
-    get scrollHeight() { return document.body.scrollHeight; },
-    get width() { return window.innerWidth; },
-    get height() { return window.innerHeight; },
+    scrollBy(x, y) {
+      window.scrollBy(x, y);
+    },
+    get scrollX() {
+      return window.scrollX;
+    },
+    get scrollY() {
+      return window.scrollY;
+    },
+    get scrollWidth() {
+      return document.body.scrollWidth;
+    },
+    get scrollHeight() {
+      return document.body.scrollHeight;
+    },
+    get width() {
+      return window.innerWidth;
+    },
+    get height() {
+      return window.innerHeight;
+    },
   };
 }
 
 function createPlaceholder(source: HTMLElement) {
-  const ph = document.createElement(source.tagName) as HTMLElement;
-  ph.className = source.className;
-  ph.setAttribute("data-drag-placeholder", "");
-  ph.textContent = "";
-  const cs = getComputedStyle(source);
-  for (const prop of LAYOUT_PROPS) ph.style[prop] = cs[prop];
-  ph.style.pointerEvents = "none";
-  return ph;
+  const placeholder = document.createElement(source.tagName) as HTMLElement;
+  placeholder.className = source.className;
+  placeholder.setAttribute("data-drag-placeholder", "");
+  placeholder.textContent = "";
+  const sourceStyle = getComputedStyle(source);
+  for (const prop of LAYOUT_PROPS) placeholder.style[prop] = sourceStyle[prop];
+  placeholder.style.pointerEvents = "none";
+  return placeholder;
 }
 
 /** FLIP-animate items from old to new positions using WAAPI. */
-function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, animating: Set<HTMLElement>, durationMs: number) {
+function flip(
+  items: HTMLElement[],
+  beforeRects: Map<HTMLElement, DOMRect>,
+  animating: Set<HTMLElement>,
+  durationMs: number,
+) {
   for (const child of items) {
     // get element position before DOM changes, compare to after, and animate if different
     const first = beforeRects.get(child);
     if (!first) continue;
     const last = child.getBoundingClientRect();
-    const dx = first.left - last.left, dy = first.top - last.top;
+    const dx = first.left - last.left,
+      dy = first.top - last.top;
     if (dx === 0 && dy === 0) continue;
 
     animating.add(child);
     child.getAnimations().forEach((a) => a.cancel());
-    child.animate(
-      [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }],
-      { duration: durationMs, easing: "ease" },
-    ).finished.then(() => animating.delete(child));
+    child
+      .animate([{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }], {
+        duration: durationMs,
+        easing: "ease",
+      })
+      .finished.then(() => animating.delete(child));
   }
 }
 
@@ -161,21 +217,21 @@ function flip(items: HTMLElement[], beforeRects: Map<HTMLElement, DOMRect>, anim
 function flipHeight(container: HTMLElement, firstHeight: number, durationMs: number) {
   const lastHeight = container.getBoundingClientRect().height;
   if (firstHeight === lastHeight) return;
-  container.animate(
-    [{ height: `${firstHeight}px` }, { height: `${lastHeight}px` }],
-    { duration: durationMs, easing: "ease" },
-  );
+  container.animate([{ height: `${firstHeight}px` }, { height: `${lastHeight}px` }], {
+    duration: durationMs,
+    easing: "ease",
+  });
 }
 
-function liftElement(placeholderEl: HTMLElement, liftedBox: DOMRect) {
-  placeholderEl.style.position = "fixed";
-  placeholderEl.style.zIndex = "10000";
-  placeholderEl.style.top = `${liftedBox.top}px`;
-  placeholderEl.style.left = `${liftedBox.left}px`;
-  placeholderEl.style.width = `${liftedBox.width}px`;
-  placeholderEl.style.height = `${liftedBox.height}px`;
-  placeholderEl.style.transition = "none";
-  placeholderEl.style.transform = "translate3d(0, 0, 0)";
+function liftElement(el: HTMLElement, box: DOMRect) {
+  el.style.position = "fixed";
+  el.style.zIndex = "10000";
+  el.style.top = `${box.top}px`;
+  el.style.left = `${box.left}px`;
+  el.style.width = `${box.width}px`;
+  el.style.height = `${box.height}px`;
+  el.style.transition = "none";
+  el.style.transform = "translate3d(0, 0, 0)";
 }
 
 function scrollSpeed(dist: number, threshold: number) {
@@ -190,46 +246,74 @@ function createAutoScroller(cfg: {
   isActive: () => boolean;
   onTick: (scrolled: boolean) => void;
 }) {
-  const { scrollEl, target: st, threshold, getPointer, isActive, onTick } = cfg;
+  const { scrollEl, target: scrollTarget, threshold, getPointer, isActive, onTick } = cfg;
   let scrolling = false;
 
-  function edgeDist(p: Point) {
+  function edgeDist(pointer: Point) {
     if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { top: p.y - r.top, right: r.right - p.x, bottom: r.bottom - p.y, left: p.x - r.left };
+      const rect = scrollEl.getBoundingClientRect();
+      return {
+        top: pointer.y - rect.top,
+        right: rect.right - pointer.x,
+        bottom: rect.bottom - pointer.y,
+        left: pointer.x - rect.left,
+      };
     }
-    return { top: p.y, right: innerWidth - p.x, bottom: innerHeight - p.y, left: p.x };
+    return {
+      top: pointer.y,
+      right: innerWidth - pointer.x,
+      bottom: innerHeight - pointer.y,
+      left: pointer.x,
+    };
   }
 
-  function thresh() {
+  function edgeThresh() {
     if (scrollEl) {
-      const r = scrollEl.getBoundingClientRect();
-      return { x: Math.min(r.width * 0.25, threshold), y: Math.min(r.height * 0.25, threshold) };
+      const rect = scrollEl.getBoundingClientRect();
+      return {
+        x: Math.min(rect.width * 0.25, threshold),
+        y: Math.min(rect.height * 0.25, threshold),
+      };
     }
     return { x: threshold, y: threshold };
   }
 
-  function computeScroll(d: ReturnType<typeof edgeDist>, t: ReturnType<typeof thresh>): [number, number] | null {
-    let dx = 0, dy = 0;
-    if (d.top < t.y && st.scrollY > 0) dy -= scrollSpeed(d.top, t.y);
-    if (d.right < t.x && st.scrollX + st.width < st.scrollWidth) dx += scrollSpeed(d.right, t.x);
-    if (d.bottom < t.y && st.scrollY + st.height < st.scrollHeight) dy += scrollSpeed(d.bottom, t.y);
-    if (d.left < t.x && st.scrollX > 0) dx -= scrollSpeed(d.left, t.x);
-    return (dx || dy) ? [dx, dy] : null;
+  function computeScroll(
+    dist: ReturnType<typeof edgeDist>,
+    thresh: ReturnType<typeof edgeThresh>,
+  ): [number, number] | null {
+    let dx = 0,
+      dy = 0;
+    if (dist.top < thresh.y && scrollTarget.scrollY > 0) dy -= scrollSpeed(dist.top, thresh.y);
+    if (
+      dist.right < thresh.x &&
+      scrollTarget.scrollX + scrollTarget.width < scrollTarget.scrollWidth
+    )
+      dx += scrollSpeed(dist.right, thresh.x);
+    if (
+      dist.bottom < thresh.y &&
+      scrollTarget.scrollY + scrollTarget.height < scrollTarget.scrollHeight
+    )
+      dy += scrollSpeed(dist.bottom, thresh.y);
+    if (dist.left < thresh.x && scrollTarget.scrollX > 0) dx -= scrollSpeed(dist.left, thresh.x);
+    return dx || dy ? [dx, dy] : null;
   }
 
   function scrollLoop() {
-    if (!isActive() || !scrolling) { scrolling = false; return; }
+    if (!isActive() || !scrolling) {
+      scrolling = false;
+      return;
+    }
     requestAnimationFrame(scrollLoop);
-    const scroll = computeScroll(edgeDist(getPointer()), thresh());
-    if (scroll) st.scrollBy(scroll[0], scroll[1]);
+    const scroll = computeScroll(edgeDist(getPointer()), edgeThresh());
+    if (scroll) scrollTarget.scrollBy(scroll[0], scroll[1]);
     onTick(!!scroll);
   }
 
   return {
     start() {
       if (scrolling) return;
-      if (computeScroll(edgeDist(getPointer()), thresh())) {
+      if (computeScroll(edgeDist(getPointer()), edgeThresh())) {
         scrolling = true;
         requestAnimationFrame(scrollLoop);
       }
@@ -237,8 +321,15 @@ function createAutoScroller(cfg: {
   };
 }
 
-function insertPlaceholderAt(placeholder: HTMLElement, container: HTMLElement, items: HTMLElement[], pointerY: number) {
-  const found = items.findIndex((c) => pointerY < c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2);
+function insertPlaceholderAt(
+  placeholder: HTMLElement,
+  container: HTMLElement,
+  items: HTMLElement[],
+  pointerY: number,
+) {
+  const found = items.findIndex(
+    (c) => pointerY < c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2,
+  );
   const idx = found === -1 ? items.length : found;
   if (idx >= items.length) container.appendChild(placeholder);
   else container.insertBefore(placeholder, items[idx]);
@@ -247,10 +338,14 @@ function insertPlaceholderAt(placeholder: HTMLElement, container: HTMLElement, i
 
 function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElement) {
   const items = [...container.querySelectorAll(selector)] as HTMLElement[];
-  return exclude ? items.filter((c) => c !== exclude) : items;
+  return exclude ? items.filter((child) => child !== exclude) : items;
 }
 
-function validateDragTarget(event: PointerEvent, container: HTMLElement, opts: ResolvedOptions): HTMLElement | null {
+function validateDragTarget(
+  event: PointerEvent,
+  container: HTMLElement,
+  opts: ResolvedOptions,
+): HTMLElement | null {
   if (event.button !== 0) return null;
   const target = event.target as HTMLElement;
   const item = target.closest(opts.items) as HTMLElement | null;
@@ -280,7 +375,11 @@ class DragSession {
   exclusionZone: DOMRect | null = null;
   scroller: { start: () => void };
 
-  constructor(public inst: SortableInstance, public el: HTMLElement, public initialPos: Point) {
+  constructor(
+    public inst: SortableInstance,
+    public el: HTMLElement,
+    public initialPos: Point,
+  ) {
     this.initialRect = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
     this.items = queryItems(inst.el, inst.opts.items);
@@ -289,7 +388,7 @@ class DragSession {
     this.currentIndex = this.originalIndex;
     this.pointer = initialPos;
     this.currentContainer = inst;
-    this.items.forEach((c, i) => this.visualOrder.set(c, i));
+    this.items.forEach((child, i) => this.visualOrder.set(child, i));
 
     el.parentNode!.insertBefore(this.placeholder, el);
     liftElement(el, this.initialRect);
@@ -313,7 +412,9 @@ class DragSession {
     });
   }
 
-  get duration() { return this.inst.opts.animationMs; }
+  get duration() {
+    return this.inst.opts.animationMs;
+  }
 
   scheduleFrame() {
     if (this.framePending || this.dropping) return;
@@ -334,8 +435,13 @@ class DragSession {
 
   isInExclusionZone(centerX: number, centerY: number) {
     if (!this.exclusionZone) return false;
-    if (centerX > this.exclusionZone.left && centerX < this.exclusionZone.right &&
-      centerY > this.exclusionZone.top && centerY < this.exclusionZone.bottom) return true;
+    if (
+      centerX > this.exclusionZone.left &&
+      centerX < this.exclusionZone.right &&
+      centerY > this.exclusionZone.top &&
+      centerY < this.exclusionZone.bottom
+    )
+      return true;
     this.exclusionZone = null;
     return false;
   }
@@ -364,12 +470,12 @@ class DragSession {
 
   reposition() {
     const newOrder = arrMove([...this.items], this.draggedIndex, this.currentIndex);
-    const siblings = this.items.filter((c) => c !== this.el);
+    const siblings = this.items.filter((child) => child !== this.el);
     const beforeRects = captureRects(siblings);
     const dragIdx = newOrder.indexOf(this.el);
-    const ref = newOrder.slice(dragIdx + 1).find((c) => c !== this.el) ?? null;
+    const ref = newOrder.slice(dragIdx + 1).find((child) => child !== this.el) ?? null;
     this.placeholder.parentNode!.insertBefore(this.placeholder, ref);
-    newOrder.forEach((c, i) => this.visualOrder.set(c, i));
+    newOrder.forEach((child, i) => this.visualOrder.set(child, i));
     flip(siblings, beforeRects, this.animating, this.duration);
   }
 
@@ -378,36 +484,39 @@ class DragSession {
     const group = groups.get(this.inst.opts.group!)!;
     for (const other of group) {
       if (other === this.currentContainer) continue;
-      if (hitTest(centerX, centerY, other.el)) { this.transfer(other, centerY); return; }
+      if (hitTest(centerX, centerY, other.el)) {
+        this.transfer(other, centerY);
+        return;
+      }
     }
   }
 
   transfer(target: SortableInstance, pointerY: number) {
-    const old = this.currentContainer;
-    const siblings = this.items.filter((c) => c !== this.el);
+    const prevContainer = this.currentContainer;
+    const siblings = this.items.filter((child) => child !== this.el);
     const targetItems = queryItems(target.el, target.opts.items, this.el);
 
-    const oldRects = captureRects(siblings);
+    const prevRects = captureRects(siblings);
     const targetRects = captureRects(targetItems);
-    const oldHeight = old.el.getBoundingClientRect().height;
+    const prevHeight = prevContainer.el.getBoundingClientRect().height;
     const targetHeight = target.el.getBoundingClientRect().height;
 
     this.placeholder.remove();
-    old.el.classList.remove("sortable-active");
+    prevContainer.el.classList.remove("sortable-active");
     const insertIdx = insertPlaceholderAt(this.placeholder, target.el, targetItems, pointerY);
     target.el.classList.add("sortable-active");
 
     this.items = queryItems(target.el, target.opts.items, this.el);
     this.items.splice(insertIdx, 0, this.el);
     this.visualOrder.clear();
-    this.items.forEach((c, i) => this.visualOrder.set(c, i));
+    this.items.forEach((child, i) => this.visualOrder.set(child, i));
     this.draggedIndex = insertIdx;
     this.currentIndex = insertIdx;
     this.currentContainer = target;
 
-    flip(siblings, oldRects, this.animating, this.duration);
+    flip(siblings, prevRects, this.animating, this.duration);
     flip(targetItems, targetRects, this.animating, this.duration);
-    flipHeight(old.el, oldHeight, this.duration);
+    flipHeight(prevContainer.el, prevHeight, this.duration);
     flipHeight(target.el, targetHeight, this.duration);
   }
 
@@ -420,28 +529,30 @@ class DragSession {
     this.el.removeAttribute("data-dragging");
 
     // Animate slide to placeholder position via WAAPI
-    this.el.animate(
-      [
-        { transform: this.el.style.transform },
-        { transform: `translate3d(${dx}px, ${dy}px, 0)` },
-      ],
-      { duration: this.duration, easing: "ease" },
-    ).finished.then(() => {
-      const crossContainer = this.currentContainer !== this.inst;
-      const from = crossContainer ? this.originalIndex : this.draggedIndex;
-      const to = this.currentIndex;
+    this.el
+      .animate(
+        [{ transform: this.el.style.transform }, { transform: `translate3d(${dx}px, ${dy}px, 0)` }],
+        { duration: this.duration, easing: "ease" },
+      )
+      .finished.then(() => {
+        const crossContainer = this.currentContainer !== this.inst;
+        const from = crossContainer ? this.originalIndex : this.draggedIndex;
+        const to = this.currentIndex;
 
-      if (crossContainer && this.inst.opts.onTransfer) {
-        this.inst.opts.onTransfer({
-          from, to, el: this.el,
-          sourceContainer: this.inst, targetContainer: this.currentContainer,
-        });
-      } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
-        this.inst.opts.onReorder({ from, to });
-      }
+        if (crossContainer && this.inst.opts.onTransfer) {
+          this.inst.opts.onTransfer({
+            from,
+            to,
+            el: this.el,
+            sourceContainer: this.inst,
+            targetContainer: this.currentContainer,
+          });
+        } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
+          this.inst.opts.onReorder({ from, to });
+        }
 
-      this.cleanup();
-    });
+        this.cleanup();
+      });
   }
 
   cleanup() {
@@ -472,7 +583,8 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     t.addEventListener(e, fn, { signal: sig, ...o });
 
   const inst: SortableInstance = {
-    el: container, opts,
+    el: container,
+    opts,
     destroy() {
       ac.abort();
       initialized.delete(container);
@@ -496,8 +608,11 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     function onMove(event: PointerEvent) {
       const pos: Point = { x: event.clientX, y: event.clientY };
       if (pending) {
-        if (Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
-          Math.abs(pos.y - initialPos.y) < opts.dragThreshold) return;
+        if (
+          Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
+          Math.abs(pos.y - initialPos.y) < opts.dragThreshold
+        )
+          return;
         pending = false;
         session = new DragSession(inst, item!, initialPos);
       }
@@ -507,21 +622,31 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
 
     function onUp() {
       dragAc.abort();
-      if (session) { session.drop(); session = null; }
+      if (session) {
+        session.drop();
+        session = null;
+      }
       pending = false;
     }
 
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
-    window.addEventListener("pointermove", onMove as EventListener, { passive: false, signal: dragSig });
+    window.addEventListener("pointermove", onMove as EventListener, {
+      passive: false,
+      signal: dragSig,
+    });
     window.addEventListener("pointerup", onUp, { signal: dragSig });
     window.addEventListener("pointercancel", onUp, { signal: dragSig });
   }
 
   on(container, "pointerdown", onPointerDown as EventListener);
-  on(window, "selectstart", (e) => { if (session) e.preventDefault(); });
-  on(window, "dragstart", (e) => { if (session) e.preventDefault(); });
+  on(window, "selectstart", (e) => {
+    if (session) e.preventDefault();
+  });
+  on(window, "dragstart", (e) => {
+    if (session) e.preventDefault();
+  });
 
   return inst;
 }

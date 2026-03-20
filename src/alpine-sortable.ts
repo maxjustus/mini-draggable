@@ -5,7 +5,13 @@
 //   x-sortable.board="items"    -- grouped containers for cross-list transfer
 //   x-sortable                  -- event-only, handle @reorder yourself
 
-import { sortable, arrMove, type SortableInstance, type SpliceBinding, type TransferEvent } from "./sortable.js";
+import {
+  sortable,
+  arrMove,
+  type SortableInstance,
+  type SpliceBinding,
+  type TransferEvent,
+} from "./sortable.js";
 
 const bindings = new WeakMap<SortableInstance, SpliceBinding>();
 
@@ -19,8 +25,11 @@ export default function AlpineSortable(Alpine: any) {
     ) => {
       const group = modifiers[0] || null;
 
-      const spliceOut = (i: number) => expression ? evaluate(expression).splice(i, 1)[0] : undefined;
-      const spliceIn = (i: number, item: any) => { if (expression) evaluate(expression).splice(i, 0, item); };
+      const spliceOut = (i: number) =>
+        expression ? evaluate(expression).splice(i, 1)[0] : undefined;
+      const spliceIn = (i: number, item: any) => {
+        if (expression) evaluate(expression).splice(i, 0, item);
+      };
 
       const d = sortable(el, {
         handle: "[data-sortable-handle]",
@@ -36,10 +45,12 @@ export default function AlpineSortable(Alpine: any) {
             const item = src.spliceOut(from);
             if (item !== undefined) tgt.spliceIn(to, item);
           }
-          el.dispatchEvent(new CustomEvent("transfer", {
-            detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
-            bubbles: true,
-          }));
+          el.dispatchEvent(
+            new CustomEvent("transfer", {
+              detail: { from, to, sourceEl: sourceContainer.el, targetEl: targetContainer.el },
+              bubbles: true,
+            }),
+          );
         },
       });
 
@@ -48,13 +59,10 @@ export default function AlpineSortable(Alpine: any) {
     },
   );
 
-  Alpine.directive(
-    "sortable-item",
-    (el: HTMLElement, { modifiers }: { modifiers: string[] }) => {
-      el.setAttribute("data-sortable", "");
-      if (modifiers.includes("disabled")) el.setAttribute("data-drag-disabled", "");
-    },
-  );
+  Alpine.directive("sortable-item", (el: HTMLElement, { modifiers }: { modifiers: string[] }) => {
+    el.setAttribute("data-sortable", "");
+    if (modifiers.includes("disabled")) el.setAttribute("data-drag-disabled", "");
+  });
 
   Alpine.directive("sortable-handle", (el: HTMLElement) => {
     el.setAttribute("data-sortable-handle", "");

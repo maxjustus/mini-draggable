@@ -7,8 +7,12 @@
 //   const useSortable = createUseSortable({ useEffect, useRef });
 
 import {
-  sortable, arrMove,
-  type SortableInstance, type SpliceBinding, type ReorderEvent, type TransferEvent,
+  sortable,
+  arrMove,
+  type SortableInstance,
+  type SpliceBinding,
+  type ReorderEvent,
+  type TransferEvent,
 } from "./sortable.js";
 
 export { arrMove };
@@ -27,7 +31,10 @@ export type UseSortableOptions = {
 
 const bindings = new WeakMap<SortableInstance, SpliceBinding>();
 
-export function createUseSortable({ useEffect, useRef }: {
+export function createUseSortable({
+  useEffect,
+  useRef,
+}: {
   useEffect: (effect: () => void | (() => void), deps?: any[]) => void;
   useRef: <T>(initial: T) => Ref<T>;
 }) {
