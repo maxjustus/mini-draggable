@@ -1,8 +1,10 @@
+// @ts-check
+
 // Drag-to-reorder library. Placeholder + FLIP animation approach.
 // Supports lists, grids, variable heights, cross-container transfer.
 //
 // Usage:
-//   import { sortable } from 'mini-sortable';
+//   import { sortable } from './sortable.js';
 //   const s = sortable(container, {
 //     items: '[data-sortable]',
 //     handle: '[data-sortable-handle]',
@@ -12,50 +14,57 @@
 //   });
 //   s.destroy();
 
-export type Point = { x: number; y: number };
-export type ReorderEvent = { from: number; to: number };
-export type TransferEvent = {
-  from: number;
-  to: number;
-  el: HTMLElement;
-  sourceContainer: SortableInstance;
-  targetContainer: SortableInstance;
-};
+/**
+ * @typedef {{ x: number; y: number }} Point
+ *
+ * @typedef {{ from: number; to: number }} ReorderEvent
+ *
+ * @typedef {{
+ *   from: number;
+ *   to: number;
+ *   el: HTMLElement;
+ *   sourceContainer: SortableInstance;
+ *   targetContainer: SortableInstance;
+ * }} TransferEvent
+ *
+ *
+ * @typedef {{ spliceOut: (i: number) => any; spliceIn: (i: number, item: any) => void }} SpliceBinding
+ *
+ *
+ * @typedef {{
+ *   scrollBy: (x: number, y: number) => void;
+ *   scrollX: number;
+ *   scrollY: number;
+ *   scrollWidth: number;
+ *   scrollHeight: number;
+ *   width: number;
+ *   height: number;
+ * }} ScrollTarget
+ *
+ *
+ * @typedef {{
+ *   items?: string;
+ *   handle?: string | null;
+ *   disabled?: ((el: HTMLElement) => boolean) | null;
+ *   onReorder?: ((event: ReorderEvent) => void) | null;
+ *   onTransfer?: ((event: TransferEvent) => void) | null;
+ *   group?: string | null;
+ *   dragThreshold?: number;
+ *   scrollThreshold?: number;
+ *   animationMs?: number;
+ * }} SortableOptions
+ *
+ *
+ * @typedef {Required<SortableOptions>} ResolvedOptions
+ *
+ * @typedef {{ el: HTMLElement; opts: ResolvedOptions; destroy: () => void }} SortableInstance
+ */
 
-export type SpliceBinding = {
-  spliceOut: (i: number) => any;
-  spliceIn: (i: number, item: any) => void;
-};
-
-export type ScrollTarget = {
-  scrollBy: (x: number, y: number) => void;
-  scrollX: number;
-  scrollY: number;
-  scrollWidth: number;
-  scrollHeight: number;
-  width: number;
-  height: number;
-};
-
-export type SortableOptions = {
-  items?: string;
-  handle?: string | null;
-  disabled?: ((el: HTMLElement) => boolean) | null;
-  onReorder?: ((event: ReorderEvent) => void) | null;
-  onTransfer?: ((event: TransferEvent) => void) | null;
-  group?: string | null;
-  dragThreshold?: number;
-  scrollThreshold?: number;
-  animationMs?: number;
-};
-
-export type ResolvedOptions = Required<SortableOptions>;
-export type SortableInstance = { el: HTMLElement; opts: ResolvedOptions; destroy: () => void };
-
-const DEFAULTS: ResolvedOptions = {
+/** @type {ResolvedOptions} */
+const DEFAULTS = {
   items: "[data-sortable]",
   handle: null,
-  disabled: (el) => el.hasAttribute("data-drag-disabled"),
+  disabled: (/** @type {HTMLElement} */ el) => el.hasAttribute("data-drag-disabled"),
   onReorder: null,
   onTransfer: null,
   group: null,
@@ -64,7 +73,7 @@ const DEFAULTS: ResolvedOptions = {
   animationMs: 150,
 };
 
-const LAYOUT_PROPS = [
+const LAYOUT_PROPS = /** @type {const} */ ([
   "width",
   "height",
   "minWidth",
@@ -79,9 +88,9 @@ const LAYOUT_PROPS = [
   "flexShrink",
   "flexBasis",
   "alignSelf",
-] as const;
+]);
 
-const MANAGED_STYLE_PROPS = [
+const MANAGED_STYLE_PROPS = /** @type {const} */ ([
   "transform",
   "transition",
   "position",
@@ -90,32 +99,53 @@ const MANAGED_STYLE_PROPS = [
   "left",
   "width",
   "height",
-] as const;
+]);
 
 const SCROLL_SPEED_RAMP = 28;
-const groups = new Map<string, Set<SortableInstance>>();
-const initialized = new WeakSet<HTMLElement>();
+/** @type {Map<string, Set<SortableInstance>>} */
+const groups = new Map();
+/** @type {WeakSet<HTMLElement>} */
+const initialized = new WeakSet();
 
-export function arrMove<T>(arr: T[], from: number, to: number): T[] {
+/**
+ * @template T
+ * @param {T[]} arr
+ * @param {number} from
+ * @param {number} to
+ * @returns {T[]}
+ */
+export function arrMove(arr, from, to) {
   arr.splice(to, 0, arr.splice(from, 1)[0]);
   return arr;
 }
 
-function hitTest(x: number, y: number, el: HTMLElement) {
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {HTMLElement} el
+ */
+function hitTest(x, y, el) {
   const rect = el.getBoundingClientRect();
   return x > rect.left && x < rect.right && y > rect.top && y < rect.bottom;
 }
 
-function captureRects(items: HTMLElement[]) {
-  return new Map(items.map((el) => [el, el.getBoundingClientRect()] as const));
+/** @param {HTMLElement[]} items */
+function captureRects(items) {
+  return new Map(items.map((el) => /** @type {const} */ ([el, el.getBoundingClientRect()])));
 }
 
-function isScrollable(v: string) {
+/** @param {string} v */
+function isScrollable(v) {
   return v === "auto" || v === "scroll";
 }
 
-function findScrollParent(el: HTMLElement): HTMLElement | null {
-  let node: HTMLElement | null = el;
+/**
+ * @param {HTMLElement} el
+ * @returns {HTMLElement | null}
+ */
+function findScrollParent(el) {
+  /** @type {HTMLElement | null} */
+  let node = el;
   while (node) {
     const s = getComputedStyle(node);
     if (isScrollable(s.overflowY) || isScrollable(s.overflowX)) return node;
@@ -124,7 +154,11 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
-function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
+/**
+ * @param {HTMLElement | null} el
+ * @returns {ScrollTarget}
+ */
+function buildScrollTarget(el) {
   if (el)
     return {
       scrollBy(x, y) {
@@ -175,8 +209,9 @@ function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
   };
 }
 
-function createPlaceholder(source: HTMLElement) {
-  const placeholder = document.createElement(source.tagName) as HTMLElement;
+/** @param {HTMLElement} source */
+function createPlaceholder(source) {
+  const placeholder = /** @type {HTMLElement} */ (document.createElement(source.tagName));
   placeholder.className = source.className;
   placeholder.setAttribute("data-drag-placeholder", "");
   placeholder.textContent = "";
@@ -186,15 +221,16 @@ function createPlaceholder(source: HTMLElement) {
   return placeholder;
 }
 
-/** FLIP-animate items from old to new positions using WAAPI. */
-function flip(
-  items: HTMLElement[],
-  beforeRects: Map<HTMLElement, DOMRect>,
-  animating: Set<HTMLElement>,
-  durationMs: number,
-) {
+/**
+ * FLIP-animate items from old to new positions using WAAPI.
+ *
+ * @param {HTMLElement[]} items
+ * @param {Map<HTMLElement, DOMRect>} beforeRects
+ * @param {Set<HTMLElement>} animating
+ * @param {number} durationMs
+ */
+function flip(items, beforeRects, animating, durationMs) {
   for (const child of items) {
-    // get element position before DOM changes, compare to after, and animate if different
     const first = beforeRects.get(child);
     if (!first) continue;
     const last = child.getBoundingClientRect();
@@ -213,8 +249,12 @@ function flip(
   }
 }
 
-/** FLIP-animate container height changes using WAAPI. */
-function flipHeight(container: HTMLElement, firstHeight: number, durationMs: number) {
+/**
+ * @param {HTMLElement} container
+ * @param {number} firstHeight
+ * @param {number} durationMs
+ */
+function flipHeight(container, firstHeight, durationMs) {
   const lastHeight = container.getBoundingClientRect().height;
   if (firstHeight === lastHeight) return;
   container.animate([{ height: `${firstHeight}px` }, { height: `${lastHeight}px` }], {
@@ -223,7 +263,11 @@ function flipHeight(container: HTMLElement, firstHeight: number, durationMs: num
   });
 }
 
-function liftElement(el: HTMLElement, box: DOMRect) {
+/**
+ * @param {HTMLElement} el
+ * @param {DOMRect} box
+ */
+function liftElement(el, box) {
   el.style.position = "fixed";
   el.style.zIndex = "10000";
   el.style.top = `${box.top}px`;
@@ -234,22 +278,30 @@ function liftElement(el: HTMLElement, box: DOMRect) {
   el.style.transform = "translate3d(0, 0, 0)";
 }
 
-function scrollSpeed(dist: number, threshold: number) {
+/**
+ * @param {number} dist
+ * @param {number} threshold
+ */
+function scrollSpeed(dist, threshold) {
   return 2 ** ((threshold - dist) / SCROLL_SPEED_RAMP);
 }
 
-function createAutoScroller(cfg: {
-  scrollEl: HTMLElement | null;
-  target: ScrollTarget;
-  threshold: number;
-  getPointer: () => Point;
-  isActive: () => boolean;
-  onTick: (scrolled: boolean) => void;
-}) {
+/**
+ * @param {{
+ *   scrollEl: HTMLElement | null;
+ *   target: ScrollTarget;
+ *   threshold: number;
+ *   getPointer: () => Point;
+ *   isActive: () => boolean;
+ *   onTick: (scrolled: boolean) => void;
+ * }} cfg
+ */
+function createAutoScroller(cfg) {
   const { scrollEl, target: scrollTarget, threshold, getPointer, isActive, onTick } = cfg;
   let scrolling = false;
 
-  function edgeDist(pointer: Point) {
+  /** @param {Point} pointer */
+  function edgeDist(pointer) {
     if (scrollEl) {
       const rect = scrollEl.getBoundingClientRect();
       return {
@@ -278,10 +330,12 @@ function createAutoScroller(cfg: {
     return { x: threshold, y: threshold };
   }
 
-  function computeScroll(
-    dist: ReturnType<typeof edgeDist>,
-    thresh: ReturnType<typeof edgeThresh>,
-  ): [number, number] | null {
+  /**
+   * @param {ReturnType<typeof edgeDist>} dist
+   * @param {ReturnType<typeof edgeThresh>} thresh
+   * @returns {[number, number] | null}
+   */
+  function computeScroll(dist, thresh) {
     let dx = 0,
       dy = 0;
     if (dist.top < thresh.y && scrollTarget.scrollY > 0) dy -= scrollSpeed(dist.top, thresh.y);
@@ -321,14 +375,16 @@ function createAutoScroller(cfg: {
   };
 }
 
-function insertPlaceholderAt(
-  placeholder: HTMLElement,
-  container: HTMLElement,
-  items: HTMLElement[],
-  pointerY: number,
-) {
+/**
+ * @param {HTMLElement} placeholder
+ * @param {HTMLElement} container
+ * @param {HTMLElement[]} items
+ * @param {number} pointerY
+ */
+function insertPlaceholderAt(placeholder, container, items, pointerY) {
   const found = items.findIndex(
-    (c) => pointerY < c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2,
+    (child) =>
+      pointerY < child.getBoundingClientRect().top + child.getBoundingClientRect().height / 2,
   );
   const idx = found === -1 ? items.length : found;
   if (idx >= items.length) container.appendChild(placeholder);
@@ -336,19 +392,26 @@ function insertPlaceholderAt(
   return idx;
 }
 
-function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElement) {
-  const items = [...container.querySelectorAll(selector)] as HTMLElement[];
+/**
+ * @param {HTMLElement} container
+ * @param {string} selector
+ * @param {HTMLElement} [exclude]
+ */
+function queryItems(container, selector, exclude) {
+  const items = /** @type {HTMLElement[]} */ ([...container.querySelectorAll(selector)]);
   return exclude ? items.filter((child) => child !== exclude) : items;
 }
 
-function validateDragTarget(
-  event: PointerEvent,
-  container: HTMLElement,
-  opts: ResolvedOptions,
-): HTMLElement | null {
+/**
+ * @param {PointerEvent} event
+ * @param {HTMLElement} container
+ * @param {ResolvedOptions} opts
+ * @returns {HTMLElement | null}
+ */
+function validateDragTarget(event, container, opts) {
   if (event.button !== 0) return null;
-  const target = event.target as HTMLElement;
-  const item = target.closest(opts.items) as HTMLElement | null;
+  const target = /** @type {HTMLElement} */ (event.target);
+  const item = /** @type {HTMLElement | null} */ (target.closest(opts.items));
   if (!item || !container.contains(item)) return null;
   if (opts.disabled?.(item)) return null;
   if (opts.handle && item.querySelector(opts.handle)) {
@@ -360,42 +423,41 @@ function validateDragTarget(
 
 /** Short-lived drag session. Created on threshold cross, discarded after drop settles. */
 class DragSession {
-  initialRect: DOMRect;
-  placeholder: HTMLElement;
-  animating = new Set<HTMLElement>();
-  items: HTMLElement[];
-  originalIndex: number;
-  draggedIndex: number;
-  currentIndex: number;
-  pointer: Point;
-  currentContainer: SortableInstance;
-  dropping = false;
-  framePending = false;
-  visualOrder = new Map<HTMLElement, number>();
-  exclusionZone: DOMRect | null = null;
-  scroller: { start: () => void };
-
-  constructor(
-    public inst: SortableInstance,
-    public el: HTMLElement,
-    public initialPos: Point,
-  ) {
+  /**
+   * @param {SortableInstance} inst
+   * @param {HTMLElement} el
+   * @param {Point} initialPos
+   */
+  constructor(inst, el, initialPos) {
+    this.inst = inst;
+    this.el = el;
+    this.initialPos = initialPos;
     this.initialRect = el.getBoundingClientRect();
     this.placeholder = createPlaceholder(el);
+    /** @type {Set<HTMLElement>} */
+    this.animating = new Set();
     this.items = queryItems(inst.el, inst.opts.items);
     this.originalIndex = this.items.indexOf(el);
     this.draggedIndex = this.originalIndex;
     this.currentIndex = this.originalIndex;
     this.pointer = initialPos;
+    /** @type {SortableInstance} */
     this.currentContainer = inst;
+    this.dropping = false;
+    this.framePending = false;
+    /** @type {Map<HTMLElement, number>} */
+    this.visualOrder = new Map();
+    /** @type {DOMRect | null} */
+    this.exclusionZone = null;
+
     this.items.forEach((child, i) => this.visualOrder.set(child, i));
 
-    el.parentNode!.insertBefore(this.placeholder, el);
+    /** @type {Node} */ (el.parentNode).insertBefore(this.placeholder, el);
     liftElement(el, this.initialRect);
     el.setAttribute("data-dragging", "");
     inst.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
-    (document.body.style as any).webkitUserSelect = "none";
+    /** @type {any} */ (document.body.style).webkitUserSelect = "none";
     document.body.style.cursor = "grabbing";
 
     const scrollEl = findScrollParent(inst.el);
@@ -426,14 +488,19 @@ class DragSession {
     });
   }
 
-  move(pos: Point) {
+  /** @param {Point} pos */
+  move(pos) {
     if (this.dropping) return;
     this.pointer = pos;
     this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
     this.scheduleFrame();
   }
 
-  isInExclusionZone(centerX: number, centerY: number) {
+  /**
+   * @param {number} centerX
+   * @param {number} centerY
+   */
+  isInExclusionZone(centerX, centerY) {
     if (!this.exclusionZone) return false;
     if (
       centerX > this.exclusionZone.left &&
@@ -456,7 +523,7 @@ class DragSession {
     for (const child of this.items) {
       if (child === this.el || this.animating.has(child)) continue;
       if (hitTest(centerX, centerY, child)) {
-        const idx = this.visualOrder.get(child)!;
+        const idx = /** @type {number} */ (this.visualOrder.get(child));
         if (idx !== this.currentIndex) {
           this.exclusionZone = child.getBoundingClientRect();
           this.currentIndex = idx;
@@ -474,14 +541,20 @@ class DragSession {
     const beforeRects = captureRects(siblings);
     const dragIdx = newOrder.indexOf(this.el);
     const ref = newOrder.slice(dragIdx + 1).find((child) => child !== this.el) ?? null;
-    this.placeholder.parentNode!.insertBefore(this.placeholder, ref);
+    /** @type {Node} */ (this.placeholder.parentNode).insertBefore(this.placeholder, ref);
     newOrder.forEach((child, i) => this.visualOrder.set(child, i));
     flip(siblings, beforeRects, this.animating, this.duration);
   }
 
-  checkTransfer(centerX: number, centerY: number) {
+  /**
+   * @param {number} centerX
+   * @param {number} centerY
+   */
+  checkTransfer(centerX, centerY) {
     if (hitTest(centerX, centerY, this.currentContainer.el)) return;
-    const group = groups.get(this.inst.opts.group!)!;
+    const group = /** @type {Set<SortableInstance>} */ (
+      groups.get(/** @type {string} */ (this.inst.opts.group))
+    );
     for (const other of group) {
       if (other === this.currentContainer) continue;
       if (hitTest(centerX, centerY, other.el)) {
@@ -491,7 +564,11 @@ class DragSession {
     }
   }
 
-  transfer(target: SortableInstance, pointerY: number) {
+  /**
+   * @param {SortableInstance} target
+   * @param {number} pointerY
+   */
+  transfer(target, pointerY) {
     const prevContainer = this.currentContainer;
     const siblings = this.items.filter((child) => child !== this.el);
     const targetItems = queryItems(target.el, target.opts.items, this.el);
@@ -528,7 +605,6 @@ class DragSession {
 
     this.el.removeAttribute("data-dragging");
 
-    // Animate slide to placeholder position via WAAPI
     this.el
       .animate(
         [{ transform: this.el.style.transform }, { transform: `translate3d(${dx}px, ${dy}px, 0)` }],
@@ -558,31 +634,45 @@ class DragSession {
   cleanup() {
     this.placeholder.remove();
     for (const child of this.items) {
-      for (const prop of MANAGED_STYLE_PROPS) (child.style as any)[prop] = "";
+      for (const prop of MANAGED_STYLE_PROPS) /** @type {any} */ (child.style)[prop] = "";
       child.removeAttribute("data-dragging");
     }
     this.currentContainer.el.classList.remove("sortable-active");
     this.inst.el.classList.remove("sortable-active");
     document.body.style.userSelect = "";
-    (document.body.style as any).webkitUserSelect = "";
+    /** @type {any} */ (document.body.style).webkitUserSelect = "";
     document.body.style.cursor = "";
   }
 }
 
-/** Make a container's children sortable via drag-and-drop. */
-export function sortable(container: HTMLElement, userOpts: SortableOptions = {}): SortableInstance {
+/**
+ * Make a container's children sortable via drag-and-drop.
+ *
+ * @param {HTMLElement} container
+ * @param {SortableOptions} [userOpts]
+ * @returns {SortableInstance}
+ */
+export function sortable(container, userOpts = {}) {
   if (initialized.has(container)) throw new Error("sortable() already called on this element");
   initialized.add(container);
 
-  const opts = { ...DEFAULTS, ...userOpts } as ResolvedOptions;
-  let session: DragSession | null = null;
+  /** @type {ResolvedOptions} */
+  const opts = /** @type {ResolvedOptions} */ ({ ...DEFAULTS, ...userOpts });
+  /** @type {DragSession | null} */
+  let session = null;
 
   const ac = new AbortController();
   const sig = ac.signal;
-  const on = (t: EventTarget, e: string, fn: EventListener, o?: AddEventListenerOptions) =>
-    t.addEventListener(e, fn, { signal: sig, ...o });
+  /**
+   * @param {EventTarget} t
+   * @param {string} e
+   * @param {EventListener} fn
+   * @param {AddEventListenerOptions} [o]
+   */
+  const on = (t, e, fn, o) => t.addEventListener(e, fn, { signal: sig, ...o });
 
-  const inst: SortableInstance = {
+  /** @type {SortableInstance} */
+  const inst = {
     el: container,
     opts,
     destroy() {
@@ -594,19 +684,23 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
 
   if (opts.group) {
     if (!groups.has(opts.group)) groups.set(opts.group, new Set());
-    groups.get(opts.group)!.add(inst);
+    /** @type {Set<SortableInstance>} */ (groups.get(opts.group)).add(inst);
   }
 
-  function onPointerDown(event: PointerEvent) {
+  /** @param {PointerEvent} event */
+  function onPointerDown(event) {
     if (session) return;
     const item = validateDragTarget(event, container, opts);
     if (!item) return;
 
-    const initialPos: Point = { x: event.clientX, y: event.clientY };
+    /** @type {Point} */
+    const initialPos = { x: event.clientX, y: event.clientY };
     let pending = true;
 
-    function onMove(event: PointerEvent) {
-      const pos: Point = { x: event.clientX, y: event.clientY };
+    /** @param {PointerEvent} event */
+    function onMove(event) {
+      /** @type {Point} */
+      const pos = { x: event.clientX, y: event.clientY };
       if (pending) {
         if (
           Math.abs(pos.x - initialPos.x) < opts.dragThreshold &&
@@ -614,7 +708,7 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
         )
           return;
         pending = false;
-        session = new DragSession(inst, item!, initialPos);
+        session = new DragSession(inst, /** @type {HTMLElement} */ (item), initialPos);
       }
       event.preventDefault();
       session?.move(pos);
@@ -632,7 +726,7 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
-    window.addEventListener("pointermove", onMove as EventListener, {
+    window.addEventListener("pointermove", /** @type {EventListener} */ (onMove), {
       passive: false,
       signal: dragSig,
     });
@@ -640,7 +734,7 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     window.addEventListener("pointercancel", onUp, { signal: dragSig });
   }
 
-  on(container, "pointerdown", onPointerDown as EventListener);
+  on(container, "pointerdown", /** @type {EventListener} */ (onPointerDown));
   on(window, "selectstart", (e) => {
     if (session) e.preventDefault();
   });

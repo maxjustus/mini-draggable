@@ -1,11 +1,8 @@
-build:
-	node build.js
-
 check:
 	npx tsc --noEmit
 
 fmt:
-	npx prettier --write 'src/**/*.ts' 'tests/**/*.js'
+	npx prettier --write '*.js' 'tests/**/*.js'
 
 test:
 	npx playwright test
