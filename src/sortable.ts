@@ -204,12 +204,14 @@ function flip(
 
     animating.add(child);
     child.getAnimations().forEach((a) => a.cancel());
-    child
-      .animate([{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }], {
-        duration: durationMs,
-        easing: "ease",
-      })
-      .finished.then(() => animating.delete(child));
+    const anim = child.animate(
+      [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }],
+      { duration: durationMs, easing: "ease" },
+    );
+    // finished rejects on cancel; the child must leave the set either way
+    // or it stays excluded from hit-testing forever
+    const settle = () => animating.delete(child);
+    anim.finished.then(settle, settle);
   }
 }
 
@@ -528,34 +530,36 @@ class DragSession {
 
     this.el.removeAttribute("data-dragging");
 
-    // Animate slide to placeholder position via WAAPI
-    this.el
-      .animate(
-        [{ transform: this.el.style.transform }, { transform: `translate3d(${dx}px, ${dy}px, 0)` }],
-        { duration: this.duration, easing: "ease" },
-      )
-      .finished.then(() => {
-        const crossContainer = this.currentContainer !== this.inst;
-        // draggedIndex is rewritten on transfer, so after leaving and
-        // re-entering the origin container it no longer matches the
-        // consumer's array — originalIndex is the true source position.
-        const from = this.originalIndex;
-        const to = this.currentIndex;
+    // Animate slide to placeholder position via WAAPI. finished rejects if
+    // the animation is cancelled (element detached, later flip cancels it) —
+    // callbacks and cleanup must still run or drag state sticks permanently.
+    const anim = this.el.animate(
+      [{ transform: this.el.style.transform }, { transform: `translate3d(${dx}px, ${dy}px, 0)` }],
+      { duration: this.duration, easing: "ease" },
+    );
+    const settle = () => {
+      const crossContainer = this.currentContainer !== this.inst;
+      // draggedIndex is rewritten on transfer, so after leaving and
+      // re-entering the origin container it no longer matches the
+      // consumer's array — originalIndex is the true source position.
+      const from = this.originalIndex;
+      const to = this.currentIndex;
 
-        if (crossContainer && this.inst.opts.onTransfer) {
-          this.inst.opts.onTransfer({
-            from,
-            to,
-            el: this.el,
-            sourceContainer: this.inst,
-            targetContainer: this.currentContainer,
-          });
-        } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
-          this.inst.opts.onReorder({ from, to });
-        }
+      if (crossContainer && this.inst.opts.onTransfer) {
+        this.inst.opts.onTransfer({
+          from,
+          to,
+          el: this.el,
+          sourceContainer: this.inst,
+          targetContainer: this.currentContainer,
+        });
+      } else if (!crossContainer && from !== to && this.inst.opts.onReorder) {
+        this.inst.opts.onReorder({ from, to });
+      }
 
-        this.cleanup();
-      });
+      this.cleanup();
+    };
+    anim.finished.then(settle, settle);
   }
 
   cleanup() {
