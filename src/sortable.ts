@@ -232,20 +232,23 @@ function flipHeight(container: HTMLElement, firstHeight: number, durationMs: num
   });
 }
 
-function liftElement(el: HTMLElement, box: DOMRect) {
-  // box is the transformed bounding box; for rotated/scaled items it is
-  // larger than the layout box, so sizing from it would inflate the element.
-  // transform-origin defaults to the center, so the layout box shares the
-  // bounding box's center and can be recovered from the untransformed size.
-  const width = el.offsetWidth;
-  const height = el.offsetHeight;
+function liftElement(el: HTMLElement) {
+  // Measure the layout box with transforms disabled — the transformed
+  // bounding box is inflated for rotated/scaled items and offset by custom
+  // transform-origins. transition: none must come first or the toggle could
+  // animate; nothing paints between the writes, so it is invisible.
+  el.style.transition = "none";
+  const prev = TRANSFORM_PROPS.map((p) => [p, el.style[p]] as const);
+  for (const prop of TRANSFORM_PROPS) el.style[prop] = "none";
+  const box = el.getBoundingClientRect();
+  for (const [prop, value] of prev) el.style[prop] = value;
+
   el.style.position = "fixed";
   el.style.zIndex = "10000";
-  el.style.top = `${box.top + (box.height - height) / 2}px`;
-  el.style.left = `${box.left + (box.width - width) / 2}px`;
-  el.style.width = `${width}px`;
-  el.style.height = `${height}px`;
-  el.style.transition = "none";
+  el.style.top = `${box.top}px`;
+  el.style.left = `${box.left}px`;
+  el.style.width = `${box.width}px`;
+  el.style.height = `${box.height}px`;
   // The individual translate property composes with any transform the
   // consumer has on the item instead of clobbering it
   el.style.translate = "0 0";
@@ -442,8 +445,10 @@ class DragSession {
     this.currentContainer = inst;
     this.items.forEach((child, i) => this.visualOrder.set(child, i));
 
+    // Lift measures the element's in-flow position, so it must run before
+    // the placeholder insertion shifts the element over by one slot
+    liftElement(el);
     el.parentNode!.insertBefore(this.placeholder, el);
-    liftElement(el, this.initialRect);
     el.setAttribute("data-dragging", "");
     inst.el.classList.add("sortable-active");
     document.body.style.userSelect = "none";
