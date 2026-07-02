@@ -652,12 +652,18 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     const dragAc = new AbortController();
     const dragSig = dragAc.signal;
     sig.addEventListener("abort", () => dragAc.abort(), { signal: dragSig });
-    window.addEventListener("pointermove", onMove as EventListener, {
+    // Pointer capture routes all further events to the item, even when the
+    // pointer leaves the window; capture is released implicitly on pointerup.
+    item.setPointerCapture(event.pointerId);
+    item.addEventListener("pointermove", onMove as EventListener, {
       passive: false,
       signal: dragSig,
     });
-    window.addEventListener("pointerup", onUp, { signal: dragSig });
-    window.addEventListener("pointercancel", onUp, { signal: dragSig });
+    item.addEventListener("pointerup", onUp, { signal: dragSig });
+    item.addEventListener("pointercancel", onUp, { signal: dragSig });
+    // Fires if the item is removed from the DOM mid-drag; after a normal
+    // pointerup the aborted listener no longer exists, so no double drop.
+    item.addEventListener("lostpointercapture", onUp, { signal: dragSig });
   }
 
   on(container, "pointerdown", onPointerDown as EventListener);

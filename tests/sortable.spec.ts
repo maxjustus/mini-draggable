@@ -247,9 +247,6 @@ test.describe("Alpine.js - test.html", () => {
 type LifecycleHelpers = {
   ul: HTMLElement;
   inst: SortableInstance;
-  pointerDown(el: Element): DOMRect;
-  pointerMove(x: number, y: number): void;
-  pointerUp(): void;
 };
 
 declare global {
@@ -259,7 +256,7 @@ declare global {
 }
 
 test.describe("drag lifecycle", () => {
-  /** Build a standalone sortable list and expose helpers on window. */
+  /** Build a standalone sortable list at the top of the page, expose the instance on window. */
   async function setupList(page: Page) {
     await page.goto("/test.html");
     await page.evaluate(async () => {
@@ -268,6 +265,7 @@ test.describe("drag lifecycle", () => {
         location.origin + "/dist/sortable.js"
       )) as typeof import("../src/sortable.js");
       const ul = document.createElement("ul");
+      ul.id = "lifecycle-list";
       for (const t of ["a", "b", "c"]) {
         const li = document.createElement("li");
         li.setAttribute("data-sortable", "");
@@ -276,40 +274,30 @@ test.describe("drag lifecycle", () => {
         ul.appendChild(li);
       }
       document.body.prepend(ul);
-      const inst = sortable(ul);
-      window.__lifecycle = {
-        ul,
-        inst,
-        pointerDown(el: Element) {
-          const r = el.getBoundingClientRect();
-          el.dispatchEvent(
-            new PointerEvent("pointerdown", {
-              bubbles: true,
-              button: 0,
-              clientX: r.x + 5,
-              clientY: r.y + 5,
-            }),
-          );
-          return r;
-        },
-        pointerMove(x: number, y: number) {
-          window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y }));
-        },
-        pointerUp() {
-          window.dispatchEvent(new PointerEvent("pointerup"));
-        },
-      };
+      window.__lifecycle = { ul, inst: sortable(ul) };
     });
+    return page.locator("#lifecycle-list > li");
+  }
+
+  /** Press on an item and move down past the drag threshold, leaving the drag active. */
+  async function startDrag(page: Page, item: Locator, dy: number) {
+    const box = await item.boundingBox();
+    if (!box) throw new Error("Could not get bounding box");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + dy, { steps: 5 });
+    await page.waitForTimeout(50); // let rAF-driven updates run
   }
 
   test("destroy mid-drag restores drag state", async ({ page }) => {
-    await setupList(page);
+    const items = await setupList(page);
+    await startDrag(page, items.nth(0), 40);
 
     const midDrag = await page.evaluate(() => {
-      const { ul, pointerDown, pointerMove } = window.__lifecycle;
+      const { ul } = window.__lifecycle;
       const li = ul.children[0] as HTMLElement;
-      const r = pointerDown(li);
-      pointerMove(r.x + 5, r.y + 40); // past threshold: drag starts
       return {
         cursor: document.body.style.cursor,
         position: li.style.position,
@@ -330,39 +318,35 @@ test.describe("drag lifecycle", () => {
       };
     });
     expect(afterDestroy).toEqual({ cursor: "", position: "", placeholder: false, dragging: false });
+    await page.mouse.up();
   });
 
   test("grab during drop animation is ignored, not half-started", async ({ page }) => {
-    await setupList(page);
+    const items = await setupList(page);
 
-    const result = await page.evaluate(async () => {
-      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      const { ul, pointerDown, pointerMove, pointerUp } = window.__lifecycle;
-      const [a, b] = [...ul.children] as HTMLElement[];
+    // First drag: lift "a", move down, release (drop animates ~150ms)
+    await startDrag(page, items.nth(0), 30);
+    await page.mouse.up();
 
-      // First drag: lift "a", move down, release (drop animates ~150ms)
-      const r1 = pointerDown(a);
-      pointerMove(r1.x + 5, r1.y + 30);
-      pointerUp();
+    // Grab "b" mid-animation — the old session's cleanup must not leave
+    // this gesture half-alive with its lift styles wiped
+    await page.waitForTimeout(50);
+    const b = items.nth(1);
+    const box = await b.boundingBox();
+    if (!box) throw new Error("Could not get bounding box");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 5 });
 
-      // Grab "b" mid-animation — the old session's cleanup must not leave
-      // this gesture half-alive with its lift styles wiped
-      await sleep(50);
-      const r2 = pointerDown(b);
-      pointerMove(r2.x + 5, r2.y + 30);
-
-      // After the first drop settles, further moves must be inert
-      await sleep(300);
-      pointerMove(r2.x + 5, r2.y + 40);
-      const mid = {
-        transform: b.style.transform,
-        dragging: b.hasAttribute("data-dragging"),
-      };
-      pointerUp();
-      await sleep(300);
-      return mid;
-    });
-    expect(result).toEqual({ transform: "", dragging: false });
+    // After the first drop settles, further moves must be inert
+    await page.waitForTimeout(300);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 2 });
+    const mid = await b.evaluate((el) => ({
+      transform: (el as HTMLElement).style.transform,
+      dragging: el.hasAttribute("data-dragging"),
+    }));
+    await page.mouse.up();
+    expect(mid).toEqual({ transform: "", dragging: false });
   });
 });
 
