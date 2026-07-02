@@ -3,9 +3,10 @@ build:
 
 check:
 	npx tsc --noEmit
+	npx tsc -p tests
 
 fmt:
-	npx prettier --write 'src/**/*.ts' 'tests/**/*.js'
+	npx prettier --write 'src/**/*.ts' 'tests/**/*.ts'
 
 test:
 	npx playwright test

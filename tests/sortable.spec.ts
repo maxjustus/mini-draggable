@@ -1,15 +1,11 @@
-// @ts-check
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
+import type { SortableInstance } from "../src/sortable.js";
 
 /**
  * Simulate a drag from one element to another using mouse events. Moves in small steps to trigger
  * the drag threshold and reorder logic.
- *
- * @param {import("@playwright/test").Page} page
- * @param {import("@playwright/test").Locator} from
- * @param {import("@playwright/test").Locator} to
  */
-async function drag(page, from, to) {
+async function drag(page: Page, from: Locator, to: Locator) {
   // Scroll into view before reading coordinates
   await from.scrollIntoViewIfNeeded();
 
@@ -46,12 +42,8 @@ async function drag(page, from, to) {
 /**
  * Drag from an element through a series of absolute points, pausing at each so rAF-based index
  * updates and transfers register, then release at the last point.
- *
- * @param {import("@playwright/test").Page} page
- * @param {import("@playwright/test").Locator} from
- * @param {{ x: number; y: number }[]} points
  */
-async function dragViaPoints(page, from, points) {
+async function dragViaPoints(page: Page, from: Locator, points: { x: number; y: number }[]) {
   await from.scrollIntoViewIfNeeded();
   const fromBox = await from.boundingBox();
   if (!fromBox) throw new Error("Could not get bounding box");
@@ -252,17 +244,29 @@ test.describe("Alpine.js - test.html", () => {
 
 // ---- Drag lifecycle (synthetic pointer events on a standalone list) ----
 
+type LifecycleHelpers = {
+  ul: HTMLElement;
+  inst: SortableInstance;
+  pointerDown(el: Element): DOMRect;
+  pointerMove(x: number, y: number): void;
+  pointerUp(): void;
+};
+
+declare global {
+  interface Window {
+    __lifecycle: LifecycleHelpers;
+  }
+}
+
 test.describe("drag lifecycle", () => {
-  /**
-   * Build a standalone sortable list and expose helpers on window.
-   *
-   * @param {import("@playwright/test").Page} page
-   */
-  async function setupList(page) {
+  /** Build a standalone sortable list and expose helpers on window. */
+  async function setupList(page: Page) {
     await page.goto("/test.html");
     await page.evaluate(async () => {
       // Non-literal specifier: the module lives on the dev server, not in the repo's TS graph
-      const { sortable } = await import(location.origin + "/dist/sortable.js");
+      const { sortable } = (await import(
+        location.origin + "/dist/sortable.js"
+      )) as typeof import("../src/sortable.js");
       const ul = document.createElement("ul");
       for (const t of ["a", "b", "c"]) {
         const li = document.createElement("li");
@@ -273,10 +277,10 @@ test.describe("drag lifecycle", () => {
       }
       document.body.prepend(ul);
       const inst = sortable(ul);
-      /** @type {any} */ (window).__lifecycle = {
+      window.__lifecycle = {
         ul,
         inst,
-        pointerDown(/** @type {Element} */ el) {
+        pointerDown(el: Element) {
           const r = el.getBoundingClientRect();
           el.dispatchEvent(
             new PointerEvent("pointerdown", {
@@ -288,7 +292,7 @@ test.describe("drag lifecycle", () => {
           );
           return r;
         },
-        pointerMove(/** @type {number} */ x, /** @type {number} */ y) {
+        pointerMove(x: number, y: number) {
           window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y }));
         },
         pointerUp() {
@@ -302,8 +306,8 @@ test.describe("drag lifecycle", () => {
     await setupList(page);
 
     const midDrag = await page.evaluate(() => {
-      const { ul, pointerDown, pointerMove } = /** @type {any} */ (window).__lifecycle;
-      const li = /** @type {HTMLElement} */ (ul.children[0]);
+      const { ul, pointerDown, pointerMove } = window.__lifecycle;
+      const li = ul.children[0] as HTMLElement;
       const r = pointerDown(li);
       pointerMove(r.x + 5, r.y + 40); // past threshold: drag starts
       return {
@@ -315,9 +319,9 @@ test.describe("drag lifecycle", () => {
     expect(midDrag).toEqual({ cursor: "grabbing", position: "fixed", placeholder: true });
 
     const afterDestroy = await page.evaluate(() => {
-      const { ul, inst } = /** @type {any} */ (window).__lifecycle;
+      const { ul, inst } = window.__lifecycle;
       inst.destroy();
-      const li = /** @type {HTMLElement} */ (ul.children[0]);
+      const li = ul.children[0] as HTMLElement;
       return {
         cursor: document.body.style.cursor,
         position: li.style.position,
@@ -332,9 +336,9 @@ test.describe("drag lifecycle", () => {
     await setupList(page);
 
     const result = await page.evaluate(async () => {
-      const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
-      const { ul, pointerDown, pointerMove, pointerUp } = /** @type {any} */ (window).__lifecycle;
-      const [a, b] = /** @type {HTMLElement[]} */ ([...ul.children]);
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const { ul, pointerDown, pointerMove, pointerUp } = window.__lifecycle;
+      const [a, b] = [...ul.children] as HTMLElement[];
 
       // First drag: lift "a", move down, release (drop animates ~150ms)
       const r1 = pointerDown(a);
