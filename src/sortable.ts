@@ -176,6 +176,11 @@ function buildScrollTarget(el: HTMLElement | null): ScrollTarget {
   };
 }
 
+// Layout-neutral, copied so the placeholder previews the item's real shape
+// (e.g. rotated cards). Runs before liftElement, so the source's computed
+// values are purely the consumer's own, not the library's drag translate.
+const TRANSFORM_PROPS = ["transform", "rotate", "scale", "translate"] as const;
+
 function createPlaceholder(source: HTMLElement) {
   const placeholder = document.createElement(source.tagName) as HTMLElement;
   placeholder.className = source.className;
@@ -183,6 +188,7 @@ function createPlaceholder(source: HTMLElement) {
   placeholder.textContent = "";
   const sourceStyle = getComputedStyle(source);
   for (const prop of LAYOUT_PROPS) placeholder.style[prop] = sourceStyle[prop];
+  for (const prop of TRANSFORM_PROPS) placeholder.style[prop] = sourceStyle[prop];
   placeholder.style.pointerEvents = "none";
   return placeholder;
 }

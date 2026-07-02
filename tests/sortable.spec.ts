@@ -356,6 +356,25 @@ test.describe("drag lifecycle", () => {
     expect(mid).toEqual({ translate: "", dragging: false });
   });
 
+  test("placeholder copies the dragged item's transform", async ({ page }) => {
+    const items = await setupList(page);
+    await items.nth(0).evaluate((el) => ((el as HTMLElement).style.transform = "rotate(5deg)"));
+    await startDrag(page, items.nth(0), 40);
+
+    const transforms = await page.evaluate(() => {
+      const { ul } = window.__lifecycle;
+      const placeholder = ul.querySelector("[data-drag-placeholder]");
+      const dragged = ul.querySelector("[data-dragging]");
+      return {
+        placeholder: placeholder && getComputedStyle(placeholder).transform,
+        item: dragged && getComputedStyle(dragged).transform,
+      };
+    });
+    await page.mouse.up();
+    expect(transforms.placeholder).toBe(transforms.item);
+    expect(transforms.placeholder).not.toBe("none");
+  });
+
   test("horizontal list transfer inserts at the pointer position", async ({ page }) => {
     await page.goto("/test.html");
     await page.evaluate(async () => {
