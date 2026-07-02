@@ -299,24 +299,7 @@ Works with grid layouts including multi-span items:
 
 ### Variable-height items
 
-No special configuration needed. Heights are handled correctly by the FLIP animation.
-
-```html
-<div x-data="{
-       items: [
-         { id: 1, text: 'Short' },
-         { id: 2, text: 'This item has much more content and will wrap to multiple lines, making it taller.' },
-         { id: 3, text: 'Medium length item' },
-       ]
-     }"
-     x-sortable="items">
-  <ul>
-    <template x-for="item in items" :key="item.id">
-      <li x-sortable-item x-text="item.text"></li>
-    </template>
-  </ul>
-</div>
-```
+Work with no extra configuration — the FLIP animation measures each item, so mixed heights and wrapping text animate correctly.
 
 ### Cross-container (e.g. Kanban board)
 
