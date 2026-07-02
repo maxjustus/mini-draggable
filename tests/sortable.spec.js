@@ -250,6 +250,86 @@ test.describe("Alpine.js - test.html", () => {
   });
 });
 
+// ---- Drag lifecycle (synthetic pointer events on a standalone list) ----
+
+test.describe("drag lifecycle", () => {
+  /**
+   * Build a standalone sortable list and expose helpers on window.
+   *
+   * @param {import("@playwright/test").Page} page
+   */
+  async function setupList(page) {
+    await page.goto("/test.html");
+    await page.evaluate(async () => {
+      // Non-literal specifier: the module lives on the dev server, not in the repo's TS graph
+      const { sortable } = await import(location.origin + "/dist/sortable.js");
+      const ul = document.createElement("ul");
+      for (const t of ["a", "b", "c"]) {
+        const li = document.createElement("li");
+        li.setAttribute("data-sortable", "");
+        li.textContent = t;
+        li.style.height = "20px";
+        ul.appendChild(li);
+      }
+      document.body.prepend(ul);
+      const inst = sortable(ul);
+      /** @type {any} */ (window).__lifecycle = {
+        ul,
+        inst,
+        pointerDown(/** @type {Element} */ el) {
+          const r = el.getBoundingClientRect();
+          el.dispatchEvent(
+            new PointerEvent("pointerdown", {
+              bubbles: true,
+              button: 0,
+              clientX: r.x + 5,
+              clientY: r.y + 5,
+            }),
+          );
+          return r;
+        },
+        pointerMove(/** @type {number} */ x, /** @type {number} */ y) {
+          window.dispatchEvent(new PointerEvent("pointermove", { clientX: x, clientY: y }));
+        },
+        pointerUp() {
+          window.dispatchEvent(new PointerEvent("pointerup"));
+        },
+      };
+    });
+  }
+
+  test("destroy mid-drag restores drag state", async ({ page }) => {
+    await setupList(page);
+
+    const midDrag = await page.evaluate(() => {
+      const { ul, pointerDown, pointerMove } = /** @type {any} */ (window).__lifecycle;
+      const li = /** @type {HTMLElement} */ (ul.children[0]);
+      const r = pointerDown(li);
+      pointerMove(r.x + 5, r.y + 40); // past threshold: drag starts
+      return {
+        cursor: document.body.style.cursor,
+        position: li.style.position,
+        placeholder: !!ul.querySelector("[data-drag-placeholder]"),
+      };
+    });
+    expect(midDrag).toEqual({ cursor: "grabbing", position: "fixed", placeholder: true });
+
+    const afterDestroy = await page.evaluate(() => {
+      const { ul, inst } = /** @type {any} */ (window).__lifecycle;
+      inst.destroy();
+      const li = /** @type {HTMLElement} */ (ul.children[0]);
+      return {
+        cursor: document.body.style.cursor,
+        position: li.style.position,
+        placeholder: !!ul.querySelector("[data-drag-placeholder]"),
+        dragging: li.hasAttribute("data-dragging"),
+      };
+    });
+    expect(afterDestroy).toEqual({ cursor: "", position: "", placeholder: false, dragging: false });
+  });
+
+});
+
 // ---- Preact/hooks tests (test-react.html) ----
 
 test.describe("Preact/hooks - test-react.html", () => {

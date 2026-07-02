@@ -522,6 +522,12 @@ class DragSession {
     flipHeight(target.el, targetHeight, this.duration);
   }
 
+  /** Immediately tear down an in-flight drag without firing callbacks. */
+  abort() {
+    this.dropping = true;
+    this.cleanup();
+  }
+
   drop() {
     this.dropping = true;
     const target = this.placeholder.getBoundingClientRect();
@@ -594,6 +600,8 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
     opts,
     destroy() {
       ac.abort();
+      session?.abort();
+      session = null;
       initialized.delete(container);
       if (opts.group) groups.get(opts.group)?.delete(inst);
     },
