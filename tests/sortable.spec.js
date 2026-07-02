@@ -328,6 +328,38 @@ test.describe("drag lifecycle", () => {
     expect(afterDestroy).toEqual({ cursor: "", position: "", placeholder: false, dragging: false });
   });
 
+  test("grab during drop animation is ignored, not half-started", async ({ page }) => {
+    await setupList(page);
+
+    const result = await page.evaluate(async () => {
+      const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+      const { ul, pointerDown, pointerMove, pointerUp } = /** @type {any} */ (window).__lifecycle;
+      const [a, b] = /** @type {HTMLElement[]} */ ([...ul.children]);
+
+      // First drag: lift "a", move down, release (drop animates ~150ms)
+      const r1 = pointerDown(a);
+      pointerMove(r1.x + 5, r1.y + 30);
+      pointerUp();
+
+      // Grab "b" mid-animation — the old session's cleanup must not leave
+      // this gesture half-alive with its lift styles wiped
+      await sleep(50);
+      const r2 = pointerDown(b);
+      pointerMove(r2.x + 5, r2.y + 30);
+
+      // After the first drop settles, further moves must be inert
+      await sleep(300);
+      pointerMove(r2.x + 5, r2.y + 40);
+      const mid = {
+        transform: b.style.transform,
+        dragging: b.hasAttribute("data-dragging"),
+      };
+      pointerUp();
+      await sleep(300);
+      return mid;
+    });
+    expect(result).toEqual({ transform: "", dragging: false });
+  });
 });
 
 // ---- Preact/hooks tests (test-react.html) ----

@@ -528,7 +528,7 @@ class DragSession {
     this.cleanup();
   }
 
-  drop() {
+  drop(onSettled: () => void) {
     this.dropping = true;
     const target = this.placeholder.getBoundingClientRect();
     const dx = target.left - this.initialRect.left;
@@ -564,6 +564,7 @@ class DragSession {
       }
 
       this.cleanup();
+      onSettled();
     };
     anim.finished.then(settle, settle);
   }
@@ -637,11 +638,15 @@ export function sortable(container: HTMLElement, userOpts: SortableOptions = {})
 
     function onUp() {
       dragAc.abort();
-      if (session) {
-        session.drop();
-        session = null;
-      }
       pending = false;
+      // Keep the session until the drop animation settles — clearing it
+      // here would let a new drag start whose styles the old session's
+      // cleanup() then wipes mid-drag.
+      const active = session;
+      if (active)
+        active.drop(() => {
+          if (session === active) session = null;
+        });
     }
 
     const dragAc = new AbortController();
