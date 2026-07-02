@@ -82,7 +82,7 @@ const LAYOUT_PROPS = [
 ] as const;
 
 const MANAGED_STYLE_PROPS = [
-  "transform",
+  "translate",
   "transition",
   "position",
   "zIndex",
@@ -205,7 +205,7 @@ function flip(
     animating.add(child);
     child.getAnimations().forEach((a) => a.cancel());
     const anim = child.animate(
-      [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "none" }],
+      [{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }],
       { duration: durationMs, easing: "ease" },
     );
     // finished rejects on cancel; the child must leave the set either way
@@ -233,7 +233,9 @@ function liftElement(el: HTMLElement, box: DOMRect) {
   el.style.width = `${box.width}px`;
   el.style.height = `${box.height}px`;
   el.style.transition = "none";
-  el.style.transform = "translate3d(0, 0, 0)";
+  // The individual translate property composes with any transform the
+  // consumer has on the item instead of clobbering it
+  el.style.translate = "0 0";
 }
 
 function scrollSpeed(dist: number, threshold: number) {
@@ -431,7 +433,7 @@ class DragSession {
   move(pos: Point) {
     if (this.dropping) return;
     this.pointer = pos;
-    this.el.style.transform = `translate3d(${pos.x - this.initialPos.x}px, ${pos.y - this.initialPos.y}px, 0)`;
+    this.el.style.translate = `${pos.x - this.initialPos.x}px ${pos.y - this.initialPos.y}px`;
     this.scheduleFrame();
   }
 
@@ -540,7 +542,7 @@ class DragSession {
     // the animation is cancelled (element detached, later flip cancels it) —
     // callbacks and cleanup must still run or drag state sticks permanently.
     const anim = this.el.animate(
-      [{ transform: this.el.style.transform }, { transform: `translate3d(${dx}px, ${dy}px, 0)` }],
+      [{ translate: this.el.style.translate }, { translate: `${dx}px ${dy}px` }],
       { duration: this.duration, easing: "ease" },
     );
     const settle = () => {

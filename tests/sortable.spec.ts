@@ -342,11 +342,11 @@ test.describe("drag lifecycle", () => {
     await page.waitForTimeout(300);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 40, { steps: 2 });
     const mid = await b.evaluate((el) => ({
-      transform: (el as HTMLElement).style.transform,
+      translate: (el as HTMLElement).style.translate,
       dragging: el.hasAttribute("data-dragging"),
     }));
     await page.mouse.up();
-    expect(mid).toEqual({ transform: "", dragging: false });
+    expect(mid).toEqual({ translate: "", dragging: false });
   });
 });
 
