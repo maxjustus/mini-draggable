@@ -375,6 +375,29 @@ test.describe("drag lifecycle", () => {
     expect(transforms.placeholder).not.toBe("none");
   });
 
+  test("lifting a transformed item does not shift or resize it", async ({ page }) => {
+    const items = await setupList(page);
+    const item = items.nth(0);
+    await item.evaluate((el) => {
+      (el as HTMLElement).style.transform = "rotate(5deg)";
+      (el as HTMLElement).style.width = "120px";
+    });
+
+    const before = await item.boundingBox();
+    if (!before) throw new Error("Could not get bounding box");
+    await startDrag(page, item, 40);
+    const during = await item.boundingBox();
+    await page.mouse.up();
+    if (!during) throw new Error("Could not get bounding box");
+
+    // The drag translate moved it down exactly 40px; the lift itself must
+    // not change the bounding box (rotated rects inflate if mis-sized)
+    expect(Math.abs(during.x - before.x)).toBeLessThan(1);
+    expect(Math.abs(during.y - (before.y + 40))).toBeLessThan(1);
+    expect(Math.abs(during.width - before.width)).toBeLessThan(1);
+    expect(Math.abs(during.height - before.height)).toBeLessThan(1);
+  });
+
   test("horizontal list transfer inserts at the pointer position", async ({ page }) => {
     await page.goto("/test.html");
     await page.evaluate(async () => {

@@ -233,12 +233,18 @@ function flipHeight(container: HTMLElement, firstHeight: number, durationMs: num
 }
 
 function liftElement(el: HTMLElement, box: DOMRect) {
+  // box is the transformed bounding box; for rotated/scaled items it is
+  // larger than the layout box, so sizing from it would inflate the element.
+  // transform-origin defaults to the center, so the layout box shares the
+  // bounding box's center and can be recovered from the untransformed size.
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
   el.style.position = "fixed";
   el.style.zIndex = "10000";
-  el.style.top = `${box.top}px`;
-  el.style.left = `${box.left}px`;
-  el.style.width = `${box.width}px`;
-  el.style.height = `${box.height}px`;
+  el.style.top = `${box.top + (box.height - height) / 2}px`;
+  el.style.left = `${box.left + (box.width - width) / 2}px`;
+  el.style.width = `${width}px`;
+  el.style.height = `${height}px`;
   el.style.transition = "none";
   // The individual translate property composes with any transform the
   // consumer has on the item instead of clobbering it
