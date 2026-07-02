@@ -180,6 +180,47 @@
     <div class="log" x-text="'Done: ' + done.join(', ')"></div>
   </div>
 
+  <!-- Test 8: Horizontal rows with cross-row transfer -->
+  <h2>8. Horizontal rows (grouped) &mdash; drop lands at the pointer, not appended</h2>
+  <div x-data="{
+         shelfA: ['One', 'Two', 'Three', 'Four'],
+         shelfB: ['Five', 'Six'],
+         log: ''
+       }"
+       @transfer="log = `Transferred from idx ${$event.detail.from} to idx ${$event.detail.to}`"
+       @reorder="log = `Reordered from ${$event.detail.from} to ${$event.detail.to}`">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 500px;">
+      <ul class="row-list" x-sortable.shelves="shelfA">
+        <template x-for="item in shelfA" :key="item">
+          <li class="chip" x-sortable-item x-text="item"></li>
+        </template>
+      </ul>
+      <ul class="row-list" x-sortable.shelves="shelfB">
+        <template x-for="item in shelfB" :key="item">
+          <li class="chip" x-sortable-item x-text="item"></li>
+        </template>
+      </ul>
+    </div>
+    <div class="log" x-text="log"></div>
+    <div class="log" x-text="'A: ' + shelfA.join(', ') + ' | B: ' + shelfB.join(', ')"></div>
+  </div>
+
+  <!-- Test 9: Items with their own CSS transforms -->
+  <h2>9. Transformed items &mdash; rotation survives drag and FLIP</h2>
+  <div x-data="{ items: ['Buy milk', 'Call dentist', 'Fix bug', 'Ship it', 'Water plants'], log: '' }"
+       x-sortable="items"
+       @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
+    <ul style="list-style: none; display: flex; flex-wrap: wrap; gap: 14px; max-width: 500px; padding: 8px;">
+      <!-- Each note carries its own transform; the library drags via the
+           translate property, which composes with it instead of overwriting -->
+      <template x-for="item in items" :key="item">
+        <li class="sticky-note" x-sortable-item x-text="item"
+            :style="`transform: rotate(${(item.length % 7) - 3}deg)`"></li>
+      </template>
+    </ul>
+    <div class="log" x-text="log"></div>
+  </div>
+
   <script type="module">
     import AlpineSortable from './dist/alpine-sortable.js';
     import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/module.esm.js';
