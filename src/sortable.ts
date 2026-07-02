@@ -536,7 +536,10 @@ class DragSession {
       )
       .finished.then(() => {
         const crossContainer = this.currentContainer !== this.inst;
-        const from = crossContainer ? this.originalIndex : this.draggedIndex;
+        // draggedIndex is rewritten on transfer, so after leaving and
+        // re-entering the origin container it no longer matches the
+        // consumer's array — originalIndex is the true source position.
+        const from = this.originalIndex;
         const to = this.currentIndex;
 
         if (crossContainer && this.inst.opts.onTransfer) {

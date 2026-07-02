@@ -43,6 +43,39 @@ async function drag(page, from, to) {
   await page.waitForTimeout(250);
 }
 
+/**
+ * Drag from an element through a series of absolute points, pausing at each so rAF-based index
+ * updates and transfers register, then release at the last point.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @param {import("@playwright/test").Locator} from
+ * @param {{ x: number; y: number }[]} points
+ */
+async function dragViaPoints(page, from, points) {
+  await from.scrollIntoViewIfNeeded();
+  const fromBox = await from.boundingBox();
+  if (!fromBox) throw new Error("Could not get bounding box");
+
+  let x = fromBox.x + fromBox.width / 2;
+  let y = fromBox.y + fromBox.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+
+  for (const point of points) {
+    const steps = 12;
+    for (let i = 1; i <= steps; i++) {
+      await page.mouse.move(x + ((point.x - x) * i) / steps, y + ((point.y - y) * i) / steps);
+      if (i % 4 === 0) await page.waitForTimeout(50);
+    }
+    await page.waitForTimeout(200);
+    x = point.x;
+    y = point.y;
+  }
+
+  await page.mouse.up();
+  await page.waitForTimeout(250);
+}
+
 // ---- Alpine.js tests (test.html) ----
 
 test.describe("Alpine.js - test.html", () => {
@@ -190,6 +223,30 @@ test.describe("Alpine.js - test.html", () => {
 
     expect(todoAfter).toBe(todoCount - 1);
     expect(doingAfter).toBe(doingCount + 1);
+  });
+
+  test("7. kanban drag out and back reorders within origin", async ({ page }) => {
+    const todoList = page.locator("h3:has-text('To Do') + ul");
+    const doingList = page.locator("h3:has-text('Doing') + ul");
+    const todoItems = todoList.locator("[data-sortable]");
+
+    const before = await todoItems.allTextContents();
+    expect(before.length).toBe(3);
+
+    await todoList.scrollIntoViewIfNeeded();
+    const doingBox = await doingList.boundingBox();
+    const todoBox = await todoList.boundingBox();
+    if (!doingBox || !todoBox) throw new Error("Could not get bounding boxes");
+
+    // Drag the last todo item into Doing, then back to the top of To Do
+    await dragViaPoints(page, todoItems.nth(2), [
+      { x: doingBox.x + doingBox.width / 2, y: doingBox.y + doingBox.height / 2 },
+      { x: todoBox.x + todoBox.width / 2, y: todoBox.y + 5 },
+    ]);
+
+    await page.waitForTimeout(300);
+    const after = await todoItems.allTextContents();
+    expect(after).toEqual([before[2], before[0], before[1]]);
   });
 });
 
