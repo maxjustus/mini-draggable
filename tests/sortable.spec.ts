@@ -458,6 +458,66 @@ test.describe("drag lifecycle", () => {
   });
 });
 
+// ---- Phoenix LiveView hook (stubbed hook context) ----
+
+test.describe("Phoenix hook", () => {
+  test("reorder pushes id, indices, and full order", async ({ page }) => {
+    await page.goto("/test.html");
+    await page.evaluate(async () => {
+      const { SortableHook } = (await import(
+        location.origin + "/dist/adapters/phoenix.js"
+      )) as typeof import("../src/adapters/phoenix.js");
+      const ul = document.createElement("ul");
+      ul.id = "phx-list";
+      for (const t of ["a", "b", "c"]) {
+        const li = document.createElement("li");
+        li.id = `item-${t}`;
+        li.setAttribute("data-sortable", "");
+        li.textContent = t;
+        li.style.height = "20px";
+        ul.appendChild(li);
+      }
+      document.body.prepend(ul);
+
+      // A LiveView hook is a plain object called with a context providing
+      // el and pushEventTo — stub it and record the pushes
+      const pushed: unknown[] = [];
+      (window as any).__phxPushed = pushed;
+      const ctx = {
+        el: ul,
+        pushEventTo: (_target: HTMLElement, event: string, payload: object) =>
+          pushed.push([event, payload]),
+      };
+      SortableHook.mounted.call(ctx as any);
+      (window as any).__phxCtx = ctx;
+    });
+
+    const items = page.locator("#phx-list > li");
+    const a = await items.nth(0).boundingBox();
+    if (!a) throw new Error("Could not get bounding box");
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 45, { steps: 8 });
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+
+    expect(await page.evaluate(() => (window as any).__phxPushed)).toEqual([
+      ["reorder", { id: "item-a", from: 0, to: 2, order: ["item-b", "item-c", "item-a"] }],
+    ]);
+    // The hook moved the dragged element into place ahead of the server patch
+    expect(await items.allTextContents()).toEqual(["b", "c", "a"]);
+
+    // destroyed() tears the drag state down without throwing
+    await page.evaluate(async () => {
+      const { SortableHook } = (await import(
+        location.origin + "/dist/adapters/phoenix.js"
+      )) as typeof import("../src/adapters/phoenix.js");
+      SortableHook.destroyed.call((window as any).__phxCtx);
+    });
+  });
+});
+
 // ---- Preact/hooks tests (test-react.html) ----
 
 test.describe("Preact/hooks - test-react.html", () => {

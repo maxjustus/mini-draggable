@@ -2,32 +2,39 @@
 
 ## Project
 
-mini-sortable: vanilla JS drag-to-reorder library with Alpine.js bindings. Placeholder + FLIP animation approach. Supports lists, grids, variable heights, cross-container transfer.
+mini-sortable: TypeScript drag-to-reorder library with framework adapters. Placeholder + FLIP animation approach. Supports lists, grids, variable heights, cross-container transfer.
 
 ## Files
 
-- `sortable.js` -- vanilla drag engine (sortable class)
-- `alpine-sortable.js` -- thin Alpine.js directive wrapper
-- `test.html` -- test page with 7 scenarios (serve with `make serve`, open http://localhost:3813/test.html)
+- `src/sortable.ts` -- vanilla drag engine (DragSession class + sortable() factory)
+- `src/adapters/alpine.ts` -- Alpine.js directive wrapper (`mini-sortable/alpine`)
+- `src/adapters/hooks.ts` -- React/Preact hook factory (`mini-sortable/hooks`)
+- `src/adapters/phoenix.ts` -- Phoenix LiveView hook (`mini-sortable/phoenix`)
+- `test.html`, `test-react.html` -- test pages; import from `dist/`, so build before serving
+- `index.html` -- GitHub Pages demo
+- `tests/sortable.spec.ts` -- Playwright suite (mouse + touch-emulation projects)
 
 ## Commands
 
-- `make check` -- run TypeScript type checking (strict mode, JSDoc types, no emit)
-- `make serve` -- start local dev server on port 3813
+- `make build` -- esbuild bundles + tsc declarations into `dist/`
+- `make check` -- type-check src and tests (strict mode, no emit)
+- `make test` -- Playwright suite (starts its own server; run `make build` first)
+- `make serve` -- dev server on port 3813 (then open /test.html)
+- `make fmt` -- prettier over src and tests
 
 ## Type checking
 
-Uses JSDoc annotations with `tsconfig.json` (`strict: true`, `checkJs: true`). Run `make check` before committing. Fix all type errors -- do not use `@ts-ignore` or weaken the tsconfig.
+Strict TypeScript. Run `make check` before committing. Fix all type errors -- do not use `@ts-ignore` or weaken the tsconfig.
 
 ## Architecture
 
-- `sortable` class manages the full drag lifecycle: pointer tracking, placeholder insertion, FLIP animation, auto-scroll, cross-container transfer
-- Alpine wrapper maps `x-sortable`, `x-sortable`, `x-sortable-handle` directives to data attributes consumed by the sortable class
-- `meta` property on sortable instances carries framework-specific data (e.g. Alpine splice helpers)
-- Groups (`opts.group`) enable cross-container drag via a module-level `Map<string, Set<sortable>>`
+- `DragSession` manages one drag: pointer capture, placeholder insertion, FLIP animation, auto-scroll, cross-container transfer; created on drag threshold, discarded after drop settles
+- The library only moves the placeholder -- consumers reorder their own data/DOM in `onReorder`/`onTransfer` callbacks (fired after the drop animation settles)
+- Adapters map framework idioms onto data attributes and callbacks; each is dependency-free and exposed as a package subpath export
+- Groups (`opts.group`) enable cross-container drag via a module-level `Map<string, Set<SortableInstance>>`
+- Dragging moves the element with the CSS `translate` property so consumer transforms compose
 
 ## Conventions
 
-- No build step -- plain ES modules, served directly
 - No `_` prefix on methods -- just descriptive names
-- Safari workaround: `repaintContainer` toggles `will-change` to fix hit-test desync after scroll + transform
+- Every item needs a stable DOM id when used with morphdom-based frameworks (LiveView)

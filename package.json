@@ -13,14 +13,19 @@
       "default": "./dist/sortable.js"
     },
     "./alpine": {
-      "types": "./dist/alpine-sortable.d.ts",
-      "import": "./dist/alpine-sortable.mjs",
-      "default": "./dist/alpine-sortable.js"
+      "types": "./dist/adapters/alpine.d.ts",
+      "import": "./dist/adapters/alpine.mjs",
+      "default": "./dist/adapters/alpine.js"
     },
     "./hooks": {
-      "types": "./dist/hooks-sortable.d.ts",
-      "import": "./dist/hooks-sortable.mjs",
-      "default": "./dist/hooks-sortable.js"
+      "types": "./dist/adapters/hooks.d.ts",
+      "import": "./dist/adapters/hooks.mjs",
+      "default": "./dist/adapters/hooks.js"
+    },
+    "./phoenix": {
+      "types": "./dist/adapters/phoenix.d.ts",
+      "import": "./dist/adapters/phoenix.mjs",
+      "default": "./dist/adapters/phoenix.js"
     }
   },
   "files": [

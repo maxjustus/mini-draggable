@@ -13,7 +13,7 @@ import {
   type SpliceBinding,
   type ReorderEvent,
   type TransferEvent,
-} from "./sortable.js";
+} from "../sortable.js";
 
 export { arrMove };
 

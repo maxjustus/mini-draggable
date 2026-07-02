@@ -3,8 +3,9 @@ import { execSync } from "child_process";
 
 const entryPoints = [
   "src/sortable.ts",
-  "src/alpine-sortable.ts",
-  "src/hooks-sortable.ts",
+  "src/adapters/alpine.ts",
+  "src/adapters/hooks.ts",
+  "src/adapters/phoenix.ts",
 ];
 
 // ESM (.mjs)
@@ -14,7 +15,7 @@ await esbuild.build({
   format: "esm",
   outExtension: { ".js": ".mjs" },
   bundle: true,
-  external: ["./sortable.js"],
+  external: ["../sortable.js"],
 });
 
 // Plain JS (readable ESM, the "copy-paste" file)
@@ -23,7 +24,7 @@ await esbuild.build({
   outdir: "dist",
   format: "esm",
   bundle: true,
-  external: ["./sortable.js"],
+  external: ["../sortable.js"],
 });
 
 // Minified IIFE (for <script> tags)

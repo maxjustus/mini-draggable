@@ -179,7 +179,7 @@ Give multiple containers the same `group` name. Items can be dragged between the
 
 ```html
 <script type="module">
-  import AlpineSortable from './alpine-sortable.js';
+  import AlpineSortable from 'mini-sortable/alpine';
   import Alpine from 'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/module.esm.js';
   Alpine.plugin(AlpineSortable);
   Alpine.start();
@@ -339,7 +339,7 @@ The `@reorder` event fires for moves within the same list. The `@transfer` event
 
 ## React / Preact
 
-`hooks-sortable.js` exports a factory function. Pass in `useEffect` and `useRef` from whichever framework you're using — the hook API is identical for both.
+`mini-sortable/hooks` exports a factory function. Pass in `useEffect` and `useRef` from whichever framework you're using — the hook API is identical for both.
 
 ```js
 // React
@@ -347,7 +347,7 @@ import { useEffect, useRef } from 'react';
 // Preact
 import { useEffect, useRef } from 'preact/hooks';
 
-import { createUseSortable, arrMove } from './hooks-sortable.js';
+import { createUseSortable, arrMove } from 'mini-sortable/hooks';
 const useSortable = createUseSortable({ useEffect, useRef });
 ```
 
@@ -434,6 +434,26 @@ function KanbanBoard() {
   );
 }
 ```
+
+## Phoenix LiveView
+
+`mini-sortable/phoenix` exports a ready-made LiveView hook that pushes `reorder` and `transfer` events (with the full item-id order) to the owning LiveView or LiveComponent:
+
+```javascript
+import { SortableHook } from "mini-sortable/phoenix";
+
+const liveSocket = new LiveSocket("/live", Socket, {
+  hooks: { Sortable: SortableHook },
+});
+```
+
+```heex
+<ul id="my-list" phx-hook="Sortable">
+  <li :for={item <- @items} id={"item-#{item.id}"} data-sortable>{item.name}</li>
+</ul>
+```
+
+See [LIVEVIEW.md](LIVEVIEW.md) for templates, event payloads, and server-side handlers.
 
 ## Browser support
 

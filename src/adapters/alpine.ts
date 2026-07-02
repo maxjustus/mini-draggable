@@ -11,7 +11,7 @@ import {
   type SortableInstance,
   type SpliceBinding,
   type TransferEvent,
-} from "./sortable.js";
+} from "../sortable.js";
 
 const bindings = new WeakMap<SortableInstance, SpliceBinding>();
 
