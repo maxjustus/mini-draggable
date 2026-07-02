@@ -384,11 +384,24 @@ function nearestItem(items: HTMLElement[], point: Point) {
   return best;
 }
 
-/** Whether the point is past the rect's center along whichever axis it is farther off-center. */
-function isPastCenter(rect: DOMRect, point: Point) {
+/**
+ * Which half of the rect the point is in, along whichever axis it is farther
+ * off-center. `after` means past the center (insert after the item); `zone`
+ * is that half of the rect, used as the anti-jitter exclusion region.
+ */
+function pointerHalf(rect: DOMRect, point: Point) {
   const relX = (point.x - (rect.left + rect.width / 2)) / rect.width;
   const relY = (point.y - (rect.top + rect.height / 2)) / rect.height;
-  return Math.abs(relY) >= Math.abs(relX) ? relY > 0 : relX > 0;
+  const vertical = Math.abs(relY) >= Math.abs(relX);
+  const after = vertical ? relY > 0 : relX > 0;
+  const zone = vertical
+    ? new DOMRect(rect.x, after ? rect.y + rect.height / 2 : rect.y, rect.width, rect.height / 2)
+    : new DOMRect(after ? rect.x + rect.width / 2 : rect.x, rect.y, rect.width / 2, rect.height);
+  return { after, zone };
+}
+
+function isPastCenter(rect: DOMRect, point: Point) {
+  return pointerHalf(rect, point).after;
 }
 
 function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElement) {
@@ -513,9 +526,18 @@ class DragSession {
     for (const child of this.items) {
       if (child === this.el || this.animating.has(child)) continue;
       if (hitTest(centerX, centerY, child)) {
-        const idx = this.visualOrder.get(child)!;
+        // Insert before or after the hovered item depending on which half
+        // the center is in; excluding only that half keeps the anti-jitter
+        // guard without deadening the rest of a large item's area
+        const { after, zone } = pointerHalf(child.getBoundingClientRect(), {
+          x: centerX,
+          y: centerY,
+        });
+        const childIdx = this.visualOrder.get(child)!;
+        let idx = childIdx + (after ? 1 : 0);
+        if (this.currentIndex < childIdx) idx -= 1;
         if (idx !== this.currentIndex) {
-          this.exclusionZone = child.getBoundingClientRect();
+          this.exclusionZone = zone;
           this.currentIndex = idx;
           this.reposition();
         }

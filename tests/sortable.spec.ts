@@ -152,8 +152,12 @@ test.describe("Alpine.js - test.html", () => {
 
     const before = await items.allTextContents();
 
-    // Drag Movable B (index 2) to Movable C (index 3)
-    await drag(page, items.nth(2), items.nth(3));
+    // Drag Movable B (index 2) past Movable C's midpoint (index 3)
+    const target = await items.nth(3).boundingBox();
+    if (!target) throw new Error("Could not get bounding box");
+    await dragViaPoints(page, items.nth(2), [
+      { x: target.x + target.width / 2, y: target.y + target.height * 0.75 },
+    ]);
 
     const after = await items.allTextContents();
     expect(after).not.toEqual(before);
@@ -200,6 +204,44 @@ test.describe("Alpine.js - test.html", () => {
 
     await page.mouse.up();
     await page.waitForTimeout(200);
+  });
+
+  test("5. grid: small item can be placed before a wide item", async ({ page }) => {
+    const grid = page.locator("h2:has-text('5. 2D grid') + div ul.grid");
+    await grid.scrollIntoViewIfNeeded();
+
+    const a = await grid.locator("[data-sortable]", { hasText: "A" }).boundingBox();
+    const g = await grid.locator("[data-sortable]", { hasText: "G" }).boundingBox();
+    if (!a || !g) throw new Error("Could not get bounding boxes");
+
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    const tx = g.x + g.width * 0.25;
+    const ty = g.y + g.height / 2;
+    for (let i = 1; i <= 10; i++) {
+      await page.mouse.move(
+        a.x + a.width / 2 + ((tx - (a.x + a.width / 2)) * i) / 10,
+        a.y + a.height / 2 + ((ty - (a.y + a.height / 2)) * i) / 10,
+      );
+      await page.waitForTimeout(40);
+    }
+    await page.waitForTimeout(250);
+
+    // The reorder reflows the grid under the stationary pointer, so track
+    // G's current position and hover its left quarter, like a human would
+    const g2 = await grid.locator("[data-sortable]", { hasText: "G" }).boundingBox();
+    if (!g2) throw new Error("Could not get bounding box");
+    await page.mouse.move(g2.x + g2.width * 0.25, g2.y + g2.height / 2, { steps: 5 });
+    await page.waitForTimeout(250);
+    await page.mouse.move(g2.x + g2.width * 0.25 + 2, g2.y + g2.height / 2, { steps: 2 });
+    await page.waitForTimeout(250);
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+
+    const order = await grid.evaluate((ul) =>
+      [...ul.querySelectorAll("[data-sortable]")].map((el) => el.textContent).join(""),
+    );
+    expect(order).toBe("BCDEFAGHIJ");
   });
 
   test("7. kanban cross-container transfer", async ({ page }) => {
