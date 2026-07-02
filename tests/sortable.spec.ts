@@ -59,7 +59,13 @@ async function dragViaPoints(page: Page, from: Locator, points: { x: number; y: 
       await page.mouse.move(x + ((point.x - x) * i) / steps, y + ((point.y - y) * i) / steps);
       if (i % 4 === 0) await page.waitForTimeout(50);
     }
+    // Index updates only run on pointer movement, and items mid-FLIP are
+    // skipped — jiggle after the animations settle like a real hand would
     await page.waitForTimeout(200);
+    await page.mouse.move(point.x + 1, point.y);
+    await page.waitForTimeout(50);
+    await page.mouse.move(point.x, point.y);
+    await page.waitForTimeout(100);
     x = point.x;
     y = point.y;
   }
@@ -252,6 +258,7 @@ type LifecycleHelpers = {
 declare global {
   interface Window {
     __lifecycle: LifecycleHelpers;
+    __transfers: { from: number; to: number }[];
   }
 }
 
@@ -347,6 +354,60 @@ test.describe("drag lifecycle", () => {
     }));
     await page.mouse.up();
     expect(mid).toEqual({ translate: "", dragging: false });
+  });
+
+  test("horizontal list transfer inserts at the pointer position", async ({ page }) => {
+    await page.goto("/test.html");
+    await page.evaluate(async () => {
+      const { sortable } = (await import(
+        location.origin + "/dist/sortable.js"
+      )) as typeof import("../src/sortable.js");
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display: flex; gap: 16px;";
+      const makeRow = (id: string, labels: string[]) => {
+        const row = document.createElement("div");
+        row.id = id;
+        row.style.cssText = "display: flex; gap: 8px; padding: 8px; flex-shrink: 0;";
+        for (const t of labels) {
+          const item = document.createElement("div");
+          item.setAttribute("data-sortable", "");
+          item.textContent = t;
+          item.style.cssText = "width: 40px; height: 40px; background: #eee; flex-shrink: 0;";
+          row.appendChild(item);
+        }
+        wrap.appendChild(row);
+        return row;
+      };
+      const rowA = makeRow("row-a", ["a1", "a2", "a3"]);
+      const rowB = makeRow("row-b", ["b1", "b2", "b3"]);
+      document.body.prepend(wrap);
+      window.__transfers = [];
+      for (const el of [rowA, rowB]) {
+        sortable(el, {
+          group: "rows",
+          onTransfer: ({ from, to }) => window.__transfers.push({ from, to }),
+        });
+      }
+    });
+
+    // Drag a1 to just left of b1 and release without lingering: insertion
+    // must land at the pointer (index 0), not append at the end the way a
+    // vertical midpoint scan would for a horizontal row
+    const b1 = page.locator("#row-b [data-sortable]").nth(0);
+    const box = await b1.boundingBox();
+    if (!box) throw new Error("Could not get bounding box");
+    const a1 = page.locator("#row-a [data-sortable]").nth(0);
+    const fromBox = await a1.boundingBox();
+    if (!fromBox) throw new Error("Could not get bounding box");
+
+    await page.mouse.move(fromBox.x + fromBox.width / 2, fromBox.y + fromBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 4, box.y + box.height / 2, { steps: 10 });
+    await page.waitForTimeout(50); // one rAF tick to register the transfer
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    expect(await page.evaluate(() => window.__transfers)).toEqual([{ from: 0, to: 0 }]);
   });
 });
 

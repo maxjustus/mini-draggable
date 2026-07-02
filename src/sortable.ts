@@ -90,6 +90,7 @@ const MANAGED_STYLE_PROPS = [
   "left",
   "width",
   "height",
+  "pointerEvents",
 ] as const;
 
 const SCROLL_SPEED_RAMP = 28;
@@ -204,10 +205,10 @@ function flip(
 
     animating.add(child);
     child.getAnimations().forEach((a) => a.cancel());
-    const anim = child.animate(
-      [{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }],
-      { duration: durationMs, easing: "ease" },
-    );
+    const anim = child.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }], {
+      duration: durationMs,
+      easing: "ease",
+    });
     // finished rejects on cancel; the child must leave the set either way
     // or it stays excluded from hit-testing forever
     const settle = () => animating.delete(child);
@@ -236,6 +237,9 @@ function liftElement(el: HTMLElement, box: DOMRect) {
   // The individual translate property composes with any transform the
   // consumer has on the item instead of clobbering it
   el.style.translate = "0 0";
+  // Keeps the lifted element invisible to elementFromPoint probes; drag
+  // events still arrive via pointer capture, which bypasses hit-testing
+  el.style.pointerEvents = "none";
 }
 
 function scrollSpeed(dist: number, threshold: number) {
@@ -329,15 +333,47 @@ function insertPlaceholderAt(
   placeholder: HTMLElement,
   container: HTMLElement,
   items: HTMLElement[],
-  pointerY: number,
+  selector: string,
+  point: Point,
 ) {
-  const found = items.findIndex(
-    (c) => pointerY < c.getBoundingClientRect().top + c.getBoundingClientRect().height / 2,
-  );
-  const idx = found === -1 ? items.length : found;
+  // elementFromPoint handles any layout (grids, horizontal lists, transformed
+  // items); the dragged element and placeholder are pointer-events: none so
+  // they never occlude the probe
+  const hit = document.elementFromPoint(point.x, point.y)?.closest(selector);
+  let anchor = hit instanceof HTMLElement && items.includes(hit) ? hit : nearestItem(items, point);
+  let idx: number;
+  if (anchor) {
+    idx = items.indexOf(anchor) + (isPastCenter(anchor.getBoundingClientRect(), point) ? 1 : 0);
+  } else {
+    idx = items.length; // empty container
+  }
   if (idx >= items.length) container.appendChild(placeholder);
   else container.insertBefore(placeholder, items[idx]);
   return idx;
+}
+
+/** The item whose border box is closest to the point (0 when inside). */
+function nearestItem(items: HTMLElement[], point: Point) {
+  let best: HTMLElement | null = null;
+  let bestDist = Infinity;
+  for (const item of items) {
+    const r = item.getBoundingClientRect();
+    const dx = Math.max(r.left - point.x, 0, point.x - r.right);
+    const dy = Math.max(r.top - point.y, 0, point.y - r.bottom);
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = item;
+    }
+  }
+  return best;
+}
+
+/** Whether the point is past the rect's center along whichever axis it is farther off-center. */
+function isPastCenter(rect: DOMRect, point: Point) {
+  const relX = (point.x - (rect.left + rect.width / 2)) / rect.width;
+  const relY = (point.y - (rect.top + rect.height / 2)) / rect.height;
+  return Math.abs(relY) >= Math.abs(relX) ? relY > 0 : relX > 0;
 }
 
 function queryItems(container: HTMLElement, selector: string, exclude?: HTMLElement) {
@@ -489,13 +525,13 @@ class DragSession {
     for (const other of group) {
       if (other === this.currentContainer) continue;
       if (hitTest(centerX, centerY, other.el)) {
-        this.transfer(other, centerY);
+        this.transfer(other, { x: centerX, y: centerY });
         return;
       }
     }
   }
 
-  transfer(target: SortableInstance, pointerY: number) {
+  transfer(target: SortableInstance, point: Point) {
     const prevContainer = this.currentContainer;
     const siblings = this.items.filter((child) => child !== this.el);
     const targetItems = queryItems(target.el, target.opts.items, this.el);
@@ -505,9 +541,17 @@ class DragSession {
     const prevHeight = prevContainer.el.getBoundingClientRect().height;
     const targetHeight = target.el.getBoundingClientRect().height;
 
-    this.placeholder.remove();
     prevContainer.el.classList.remove("sortable-active");
-    const insertIdx = insertPlaceholderAt(this.placeholder, target.el, targetItems, pointerY);
+    // Probe against on-screen geometry: the placeholder is still in the
+    // source container here, and insertBefore re-parents it in one step.
+    // Removing it first would reflow the target before the point is probed.
+    const insertIdx = insertPlaceholderAt(
+      this.placeholder,
+      target.el,
+      targetItems,
+      target.opts.items,
+      point,
+    );
     target.el.classList.add("sortable-active");
 
     this.items = queryItems(target.el, target.opts.items, this.el);
