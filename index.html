@@ -272,6 +272,63 @@
       max-width: none;
     }
 
+    /* --- Horizontal rows --- */
+
+    .row-list {
+      list-style: none;
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      min-height: 58px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+    }
+
+    .chip {
+      padding: 9px 14px;
+      background: var(--surface-raised);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      font-size: 13px;
+      user-select: none;
+      cursor: grab;
+      flex-shrink: 0;
+      color: var(--text);
+    }
+
+    .chip[data-dragging] {
+      border-color: var(--accent);
+      box-shadow: 4px 4px 0 var(--shadow-hard), 0 0 20px var(--accent-glow);
+    }
+
+    /* --- Sticky notes --- */
+
+    .notes {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 8px;
+    }
+
+    .sticky-note {
+      width: 104px;
+      height: 88px;
+      padding: 10px;
+      background: #e6d55a;
+      color: #1a1a1a;
+      box-shadow: 4px 4px 0 var(--shadow-hard);
+      font-size: 12px;
+      font-weight: 500;
+      user-select: none;
+      cursor: grab;
+      flex-shrink: 0;
+    }
+
+    .sticky-note[data-dragging] {
+      box-shadow: 6px 6px 0 var(--shadow-hard), 0 0 24px var(--accent-glow);
+    }
+
     /* --- Footer --- */
 
     .footer {
@@ -535,6 +592,58 @@
             </ul>
           </div>
         </div>
+        <div class="log" x-text="log"></div>
+      </div>
+    </section>
+
+    <!-- 8. Horizontal rows -->
+    <section class="example">
+      <div class="example-header">
+        <code>x-sortable.shelves="row"</code>
+        <h2>Horizontal rows</h2>
+        <p>Grouped containers don't have to be vertical lists. Drops land at the pointer position.</p>
+      </div>
+      <div class="example-body"
+           x-data="{
+             shelfA: ['One', 'Two', 'Three', 'Four'],
+             shelfB: ['Five', 'Six'],
+             log: ''
+           }"
+           @transfer="log = `Transferred from idx ${$event.detail.from} to idx ${$event.detail.to}`"
+           @reorder="log = `Reordered from ${$event.detail.from} to ${$event.detail.to}`">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <ul class="row-list" x-sortable.shelves="shelfA">
+            <template x-for="item in shelfA" :key="item">
+              <li class="chip" x-sortable-item x-text="item"></li>
+            </template>
+          </ul>
+          <ul class="row-list" x-sortable.shelves="shelfB">
+            <template x-for="item in shelfB" :key="item">
+              <li class="chip" x-sortable-item x-text="item"></li>
+            </template>
+          </ul>
+        </div>
+        <div class="log" x-text="log"></div>
+      </div>
+    </section>
+
+    <!-- 9. Transformed items -->
+    <section class="example">
+      <div class="example-header">
+        <code>transform: rotate(...)</code>
+        <h2>Transformed items</h2>
+        <p>Items keep their own CSS transforms. Dragging uses the translate property, which composes with them.</p>
+      </div>
+      <div class="example-body"
+           x-data="{ items: ['Buy milk', 'Call dentist', 'Fix bug', 'Ship it', 'Water plants'], log: '' }"
+           x-sortable="items"
+           @reorder="log = `Moved from ${$event.detail.from} to ${$event.detail.to}`">
+        <ul class="notes">
+          <template x-for="item in items" :key="item">
+            <li class="sticky-note" x-sortable-item x-text="item"
+                :style="`transform: rotate(${(item.length % 7) - 3}deg)`"></li>
+          </template>
+        </ul>
         <div class="log" x-text="log"></div>
       </div>
     </section>
